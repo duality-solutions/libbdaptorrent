@@ -14,14 +14,12 @@ bin_PROGRAMS = $(example_programs)
 endif
 
 EXTRA_PROGRAMS = $(example_programs)
-EXTRA_DIST = Jamfile CMakeLists.txt run_cmake.sh.in session_view.hpp torrent_view.hpp print.hpp cmake/FindLibtorrentRasterbar.cmake
+EXTRA_DIST = Jamfile CMakeLists.txt session_view.hpp torrent_view.hpp print.hpp cmake/FindLibtorrentRasterbar.cmake
 
 client_test_SOURCES = client_test.cpp print.cpp session_view.cpp torrent_view.cpp
 stats_counters_SOURCES = stats_counters.cpp
 bt_get_SOURCES = bt-get.cpp
 bt_get2_SOURCES = bt-get2.cpp
-bt_get_CXXFLAGS = -std=c++11
-bt_get2_CXXFLAGS = -std=c++11
 dump_torrent_SOURCES = dump_torrent.cpp
 make_torrent_SOURCES = make_torrent.cpp
 simple_client_SOURCES = simple_client.cpp

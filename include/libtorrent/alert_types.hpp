@@ -757,7 +757,7 @@ TORRENT_VERSION_NAMESPACE_2
 
 		TORRENT_DEFINE_ALERT(peer_connect_alert, 23)
 
-		static constexpr alert_category_t static_category = alert::debug_notification;
+		static constexpr alert_category_t static_category = alert::connect_notification;
 		std::string message() const override;
 
 		int const socket_type;
@@ -775,7 +775,7 @@ TORRENT_VERSION_NAMESPACE_2
 
 		TORRENT_DEFINE_ALERT(peer_disconnected_alert, 24)
 
-		static constexpr alert_category_t static_category = alert::debug_notification;
+		static constexpr alert_category_t static_category = alert::connect_notification;
 		std::string message() const override;
 
 		// the kind of socket this peer was connected over
@@ -1114,8 +1114,11 @@ TORRENT_VERSION_NAMESPACE_2
 	{
 		// internal
 		save_resume_data_alert(aux::stack_allocator& alloc
-			, add_torrent_params params
+			, add_torrent_params&& params
 			, torrent_handle const& h);
+		save_resume_data_alert(aux::stack_allocator& alloc
+			, add_torrent_params const& params
+			, torrent_handle const& h) = delete;
 
 		TORRENT_DEFINE_ALERT_PRIO(save_resume_data_alert, 37, alert_priority_critical)
 
@@ -2596,7 +2599,7 @@ TORRENT_VERSION_NAMESPACE_2
 	private:
 		std::reference_wrapper<aux::stack_allocator> m_alloc;
 		aux::allocation_slot m_msg_idx;
-		std::size_t const m_size;
+		int const m_size;
 #if TORRENT_ABI_VERSION == 1
 	public:
 		direction_t TORRENT_DEPRECATED_MEMBER dir;
@@ -2675,7 +2678,7 @@ TORRENT_VERSION_NAMESPACE_2
 		// internal
 		picker_log_alert(aux::stack_allocator& alloc, torrent_handle const& h
 			, tcp::endpoint const& ep, peer_id const& peer_id, picker_flags_t flags
-			, piece_block const* blocks, int num_blocks);
+			, span<piece_block const> blocks);
 
 		TORRENT_DEFINE_ALERT(picker_log_alert, 89)
 

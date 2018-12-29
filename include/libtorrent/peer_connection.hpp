@@ -523,10 +523,6 @@ namespace aux {
 			, char const* event, char const* fmt, ...) const noexcept final TORRENT_FORMAT(4,5);
 		void peer_log(peer_log_alert::direction_t direction
 			, char const* event) const noexcept;
-
-		time_point m_connect_time;
-		time_point m_bitfield_time;
-		time_point m_unchoke_time;
 #endif
 
 		// the message handlers are called
@@ -842,7 +838,7 @@ namespace aux {
 		// outstanding request, the time since the piece was requested. It
 		// is essentially an estimate of the time it will take to completely
 		// receive a payload message after it has been requested.
-		sliding_average<20> m_request_time;
+		sliding_average<int, 20> m_request_time;
 
 		// keep the io_service running as long as we
 		// have peer connections

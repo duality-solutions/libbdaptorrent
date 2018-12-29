@@ -45,7 +45,7 @@ namespace libtorrent {
 
 namespace detail {
 
-	char const* integer_to_str(char* buf, int size
+	string_view integer_to_str(span<char> buf
 		, entry::integer_type val)
 	{
 		int sign = 0;
@@ -54,28 +54,19 @@ namespace detail {
 			sign = 1;
 			val = -val;
 		}
-		buf[--size] = '\0';
-		if (val == 0) buf[--size] = '0';
-		while (size > sign && val != 0)
+		char* ptr = &buf.back();
+		*ptr-- = '\0';
+		if (val == 0) *ptr-- = '0';
+		while (ptr > buf.data() + sign && val != 0)
 		{
-			buf[--size] = '0' + char(val % 10);
+			*ptr-- = '0' + char(val % 10);
 			val /= 10;
 		}
-		if (sign) buf[--size] = '-';
-		return buf + size;
+		if (sign) *ptr-- = '-';
+		++ptr;
+		return {ptr, static_cast<std::size_t>(&buf.back() - ptr)};
 	}
 } // detail
-
-	entry bdecode(span<char const> buffer)
-	{
-		entry e;
-		bool err = false;
-		auto it = buffer.begin();
-		detail::bdecode_recursive(it, buffer.end(), e, err, 0);
-		TORRENT_ASSERT(e.m_type_queried == false);
-		if (err) return entry();
-		return e;
-	}
 
 namespace {
 
@@ -309,6 +300,12 @@ namespace {
 		this->operator=(std::move(e));
 	}
 
+	entry::entry(bdecode_node const& n)
+		: m_type(undefined_t)
+	{
+		this->operator=(n);
+	}
+
 	entry::entry(dictionary_type v)
 		: m_type(undefined_t)
 	{
@@ -325,7 +322,7 @@ namespace {
 #if TORRENT_USE_ASSERTS
 		m_type_queried = true;
 #endif
-		new(&data) string_type(v.data(), v.size());
+		new(&data) string_type(v.data(), std::size_t(v.size()));
 		m_type = string_t;
 	}
 
@@ -462,7 +459,7 @@ namespace {
 	entry& entry::operator=(span<char const> v) &
 	{
 		destruct();
-		new(&data) string_type(v.data(), v.size());
+		new(&data) string_type(v.data(), std::size_t(v.size()));
 		m_type = string_t;
 #if TORRENT_USE_ASSERTS
 		m_type_queried = true;
@@ -492,26 +489,26 @@ namespace {
 		return *this;
 	}
 
-	bool entry::operator==(entry const& e) const
+	bool operator==(entry const& lhs, entry const& rhs)
 	{
-		if (type() != e.type()) return false;
+		if (lhs.type() != rhs.type()) return false;
 
-		switch (m_type)
+		switch (lhs.type())
 		{
-		case int_t:
-			return integer() == e.integer();
-		case string_t:
-			return string() == e.string();
-		case list_t:
-			return list() == e.list();
-		case dictionary_t:
-			return dict() == e.dict();
-		case preformatted_t:
-			return preformatted() == e.preformatted();
-		default:
-			TORRENT_ASSERT(m_type == undefined_t);
+		case entry::int_t:
+			return lhs.integer() == rhs.integer();
+		case entry::string_t:
+			return lhs.string() == rhs.string();
+		case entry::list_t:
+			return lhs.list() == rhs.list();
+		case entry::dictionary_t:
+			return lhs.dict() == rhs.dict();
+		case entry::preformatted_t:
+			return lhs.preformatted() == rhs.preformatted();
+		case entry::undefined_t:
 			return true;
 		}
+		return false;
 	}
 
 	void entry::construct(data_type t)
@@ -519,7 +516,7 @@ namespace {
 		switch (t)
 		{
 		case int_t:
-			new (&data) integer_type;
+			new (&data) integer_type(0);
 			break;
 		case string_t:
 			new (&data) string_type;
@@ -662,21 +659,11 @@ namespace {
 		}
 	}
 
-	std::string entry::to_string(bool const single_line) const
-	{
-		std::string ret;
-		to_string_impl(ret, 0, single_line);
-		return ret;
-	}
-
 namespace {
 	bool is_binary(std::string const& str)
 	{
-		for (char const c : str)
-		{
-			if (!is_print(c)) return true;
-		}
-		return false;
+		return std::any_of(str.begin(), str.end()
+			, [](char const c) { return !is_print(c); });
 	}
 
 	std::string print_string(std::string const& str)
@@ -689,62 +676,79 @@ namespace {
 	{
 		out.resize(out.size() + size_t(indent), ' ');
 	}
-}
 
-	void entry::to_string_impl(std::string& out, int const indent
-		, bool const single_line) const
+	void print_list(std::string&, entry const&, int, bool);
+	void print_dict(std::string&, entry const&, int, bool);
+
+	void to_string_impl(std::string& out, entry const& e, int const indent
+		, bool const single_line)
 	{
 		TORRENT_ASSERT(indent >= 0);
-		switch (m_type)
+		switch (e.type())
 		{
-		case int_t:
-			out += libtorrent::to_string(integer()).data();
+		case entry::int_t:
+			out += libtorrent::to_string(e.integer()).data();
 			break;
-		case string_t:
-			{
-				out += "'";
-				out += print_string(string());
-				out += "'";
-			} break;
-		case list_t:
-			{
-				out += single_line ? "[ " : "[\n";
-				bool first = true;
-				for (auto const& item : list())
-				{
-					if (!first) out += single_line ? ", " : ",\n";
-					first = false;
-					if (!single_line) add_indent(out, indent+1);
-					item.to_string_impl(out, indent+1, single_line);
-				}
-				out += " ]";
-			} break;
-		case dictionary_t:
-			{
-				out += single_line ? "{ " : "{\n";
-				bool first = true;
-				for (auto const& item : dict())
-				{
-					if (!first) out += single_line ? ", " : ",\n";
-					first = false;
-					if (!single_line) add_indent(out, indent+1);
-					out += "'";
-					out += print_string(item.first);
-					out += "': ";
-
-					item.second.to_string_impl(out, indent+2, single_line);
-				}
-				out += " }";
-			} break;
-		case preformatted_t:
+		case entry::string_t:
+			out += "'";
+			out += print_string(e.string());
+			out += "'";
+			break;
+		case entry::list_t:
+			print_list(out, e, indent + 1, single_line);
+			break;
+		case entry::dictionary_t:
+			print_dict(out, e, indent + 1, single_line);
+			break;
+		case entry::preformatted_t:
 			out += "<preformatted>";
 			break;
-		case undefined_t:
+		case entry::undefined_t:
 			out += "<uninitialized>";
-			break;
-		default:
-			out += "<error>";
 			break;
 		}
 	}
+
+	void print_list(std::string& out, entry const& e
+		, int const indent, bool const single_line)
+	{
+		out += single_line ? "[ " : "[\n";
+		bool first = true;
+		for (auto const& item : e.list())
+		{
+			if (!first) out += single_line ? ", " : ",\n";
+			first = false;
+			if (!single_line) add_indent(out, indent);
+			to_string_impl(out, item, indent, single_line);
+		}
+		out += " ]";
+	}
+
+	void print_dict(std::string& out, entry const& e
+		, int const indent, bool const single_line)
+	{
+		out += single_line ? "{ " : "{\n";
+		bool first = true;
+		for (auto const& item : e.dict())
+		{
+			if (!first) out += single_line ? ", " : ",\n";
+			first = false;
+			if (!single_line) add_indent(out, indent);
+			out += "'";
+			out += print_string(item.first);
+			out += "': ";
+
+			to_string_impl(out, item.second, indent+1, single_line);
+		}
+		out += " }";
+	}
+}
+
+	std::string entry::to_string(bool const single_line) const
+	{
+		std::string ret;
+		to_string_impl(ret, *this, 0, single_line);
+		return ret;
+	}
+
 }

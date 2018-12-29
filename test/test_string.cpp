@@ -218,11 +218,11 @@ TORRENT_TEST(base64)
 	TEST_CHECK(base64encode("foobar") == "Zm9vYmFy");
 }
 
-#if TORRENT_USE_I2P
 TORRENT_TEST(base32)
 {
 	// base32 test vectors from http://www.faqs.org/rfcs/rfc4648.html
 
+#if TORRENT_USE_I2P
 	TEST_CHECK(base32encode("") == "");
 	TEST_CHECK(base32encode("f") == "MY======");
 	TEST_CHECK(base32encode("fo") == "MZXQ====");
@@ -235,6 +235,12 @@ TORRENT_TEST(base32)
 	TEST_CHECK(base32encode("fo", string::no_padding) == "MZXQ");
 	TEST_CHECK(base32encode("foob", string::i2p) == "mzxw6yq");
 	TEST_CHECK(base32encode("foobar", string::lowercase) == "mzxw6ytboi======");
+
+	std::string test;
+	for (int i = 0; i < 255; ++i)
+		test += char(i);
+
+	TEST_CHECK(base32decode(base32encode(test)) == test);
 #endif // TORRENT_USE_I2P
 
 	TEST_CHECK(base32decode("") == "");
@@ -252,12 +258,6 @@ TORRENT_TEST(base32)
 
 	// make sure invalid encoding returns the empty string
 	TEST_CHECK(base32decode("mZXw6yTBO1{#&*()=") == "");
-
-	std::string test;
-	for (int i = 0; i < 255; ++i)
-		test += char(i);
-
-	TEST_CHECK(base32decode(base32encode(test)) == test);
 }
 
 TORRENT_TEST(escape_string)
@@ -318,18 +318,6 @@ TORRENT_TEST(read_until)
 	tmp1 = test_string1;
 	TEST_CHECK(read_until(tmp1, '[', test_string1 + strlen(test_string1))
 		== "abcdesdf sdgf");
-}
-
-TORRENT_TEST(url_has_argument)
-{
-	TEST_CHECK(url_has_argument("http://127.0.0.1/test", "test") == "");
-	TEST_CHECK(url_has_argument("http://127.0.0.1/test?foo=24", "bar") == "");
-	TEST_CHECK(url_has_argument("http://127.0.0.1/test?foo=24", "foo") == "24");
-	TEST_CHECK(url_has_argument("http://127.0.0.1/test?foo=24&bar=23", "foo") == "24");
-	TEST_CHECK(url_has_argument("http://127.0.0.1/test?foo=24&bar=23", "bar") == "23");
-	TEST_CHECK(url_has_argument("http://127.0.0.1/test?foo=24&bar=23&a=e", "bar") == "23");
-	TEST_CHECK(url_has_argument("http://127.0.0.1/test?foo=24&bar=23&a=e", "a") == "e");
-	TEST_CHECK(url_has_argument("http://127.0.0.1/test?foo=24&bar=23&a=e", "b") == "");
 }
 
 TORRENT_TEST(path)

@@ -172,6 +172,17 @@ namespace libtorrent {
 			}
 		}
 
+		if (!tracker_req().ipv4.empty() && !i2p)
+		{
+			for (auto const& v4 : tracker_req().ipv4)
+			{
+				error_code err;
+				std::string const ip = v4.to_string(err);
+				if (err) continue;
+				url += "&ipv4=";
+				url += escape_string(ip);
+			}
+		}
 		if (!tracker_req().ipv6.empty() && !i2p)
 		{
 			for (auto const& v6 : tracker_req().ipv6)
@@ -313,12 +324,6 @@ namespace libtorrent {
 		{
 			fail(error_code(parser.status_code(), http_category())
 				, parser.message().c_str());
-			return;
-		}
-
-		if (ec && ec != boost::asio::error::eof)
-		{
-			fail(ec);
 			return;
 		}
 

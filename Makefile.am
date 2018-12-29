@@ -85,7 +85,9 @@ DOCS_PAGES = \
   docs/utp.rst                    \
   docs/streaming.rst              \
   docs/tutorial.rst               \
+  docs/header.rst                 \
   docs/tutorial.html              \
+  docs/upgrade_to_1.2-ref.html    \
   docs/reference-Alerts.html      \
   docs/reference-Bdecoding.html   \
   docs/reference-Bencoding.html   \
@@ -115,6 +117,15 @@ EXTRA_DIST = \
   Jamfile \
   Jamroot.jam \
   CMakeLists.txt \
+  LibtorrentRasterbarConfig.cmake.in \
+  cmake/Modules/FindLibGcrypt.cmake \
+  cmake/Modules/GeneratePkgConfig.cmake \
+  cmake/Modules/LibtorrentMacros.cmake \
+  cmake/Modules/ucm_flags.cmake \
+  cmake/Modules/GeneratePkgConfig/generate-pkg-config.cmake.in \
+  cmake/Modules/GeneratePkgConfig/pkg-config.cmake.in \
+  cmake/Modules/GeneratePkgConfig/target-compile-settings.cmake.in \
+  LibtorrentRasterbarConfig.cmake.in \
   setup.py \
   LICENSE \
   README.rst \

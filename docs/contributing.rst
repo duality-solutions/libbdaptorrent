@@ -2,8 +2,7 @@
 libtorrent manual
 =================
 
-:Author: Arvid Norberg, arvid@libtorrent.org
-:Version: 1.2.0
+.. include:: header.rst
 
 .. contents:: Table of contents
   :depth: 2
@@ -40,7 +39,7 @@ enumerated on this page, please contact arvid@libtorrent.org or the `mailing lis
 3. Code
 	Contributing code for new features or bug-fixes is highly welcome. If you're interested
 	in adding a feature but not sure where to start, please contact the `mailing list`_ or
-	``#libtorrent`` @ ``irc.freenode.net``. For proposed fixes or udpates, please
+	``#libtorrent`` @ ``irc.freenode.net``. For proposed fixes or updates, please
 	submit a `pull request`_.
 
 	New features might be better support for integrating with other services, new choking

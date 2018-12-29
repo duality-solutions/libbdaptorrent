@@ -102,7 +102,7 @@ bool sleep_and_input(int* c, lt::time_duration const sleep)
 		std::this_thread::sleep_for(sleep / 2);
 	}
 	return false;
-};
+}
 
 #else
 
@@ -1070,8 +1070,6 @@ example alert_masks:
 
 	lt::session_params params;
 
-	lt::error_code ec;
-
 #ifndef TORRENT_DISABLE_DHT
 	params.dht_settings.privacy_lookups = true;
 
@@ -1079,6 +1077,7 @@ example alert_masks:
 	if (load_file(".ses_state", in))
 	{
 		lt::bdecode_node e;
+		lt::error_code ec;
 		if (bdecode(&in[0], &in[0] + in.size(), e, ec) == 0)
 			params = read_session_params(e, session_handle::save_dht_state);
 	}
@@ -1095,7 +1094,7 @@ example alert_masks:
 		| alert::port_mapping_notification
 		| alert::storage_notification
 		| alert::tracker_notification
-		| alert::debug_notification
+		| alert::connect_notification
 		| alert::status_notification
 		| alert::ip_block_notification
 		| alert::performance_warning
@@ -1238,11 +1237,11 @@ example alert_masks:
 
 	// create directory for resume files
 #ifdef TORRENT_WINDOWS
-	int ret = _mkdir(path_append(save_path, ".resume").c_str());
+	int mkdir_ret = _mkdir(path_append(save_path, ".resume").c_str());
 #else
-	int ret = mkdir(path_append(save_path, ".resume").c_str(), 0777);
+	int mkdir_ret = mkdir(path_append(save_path, ".resume").c_str(), 0777);
 #endif
-	if (ret < 0 && errno != EEXIST)
+	if (mkdir_ret < 0 && errno != EEXIST)
 	{
 		std::fprintf(stderr, "failed to create resume file directory: (%d) %s\n"
 			, errno, strerror(errno));
@@ -1356,7 +1355,11 @@ example alert_masks:
 
 			torrent_handle h = view.get_active_handle();
 
-			if (c == EOF) { break; }
+			if (c == EOF)
+			{
+				quit = true;
+				break;
+			}
 			do
 			{
 				if (c == escape_seq)
@@ -1366,11 +1369,19 @@ example alert_masks:
 					int c2 = _getch();
 #else
 					int c2 = getc(stdin);
-					if (c2 == EOF) { break; }
+					if (c2 == EOF)
+					{
+						quit = true;
+						break;
+					}
 					if (c2 != '[') continue;
 					c2 = getc(stdin);
 #endif
-					if (c2 == EOF) break;
+					if (c2 == EOF)
+					{
+						quit = true;
+						break;
+					}
 					if (c2 == left_arrow)
 					{
 						int const filter = view.filter();
@@ -1455,8 +1466,8 @@ example alert_masks:
 					set_keypress s(set_keypress::echo | set_keypress::canonical);
 #endif
 					char response = 'n';
-					int ret = std::scanf("%c", &response);
-					if (ret == 1 && response == 'y')
+					int scan_ret = std::scanf("%c", &response);
+					if (scan_ret == 1 && response == 'y')
 					{
 						// also delete the resume file
 						std::string const rpath = resume_file(st.info_hash);
@@ -1723,7 +1734,6 @@ COLUMN OPTIONS
 				out += str;
 				pos += 1;
 				std::vector<lt::announce_entry> tr = h.trackers();
-				lt::time_point now = lt::clock_type::now();
 				for (lt::announce_entry const& ae : h.trackers())
 				{
 					auto best_ae = std::min_element(ae.endpoints.begin(), ae.endpoints.end()
@@ -1744,9 +1754,9 @@ COLUMN OPTIONS
 
 			if (print_matrix)
 			{
-				int height = 0;
-				print(piece_matrix(s.pieces, terminal_width, &height).c_str());
-				pos += height;
+				int height_out = 0;
+				print(piece_matrix(s.pieces, terminal_width, &height_out).c_str());
+				pos += height_out;
 			}
 
 			if (print_downloads)

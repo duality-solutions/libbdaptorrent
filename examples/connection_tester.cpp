@@ -306,7 +306,6 @@ struct peer_conn
 			// unchoke
 			write_uint32(1, ptr);
 			write_uint8(1, ptr);
-			error_code ec;
 			boost::asio::async_write(s, boost::asio::buffer(write_buf_proto, ptr - write_buf_proto)
 				, std::bind(&peer_conn::on_have_all_sent, this, _1, _2));
 		}
@@ -322,7 +321,6 @@ struct peer_conn
 			// unchoke
 			write_uint32(1, ptr);
 			write_uint8(1, ptr);
-			error_code ec;
 			boost::asio::async_write(s, boost::asio::buffer((char*)buffer, len + 10)
 				, std::bind(&peer_conn::on_have_all_sent, this, _1, _2));
 		}
@@ -390,7 +388,6 @@ struct peer_conn
 		write_uint32(static_cast<int>(current_piece), ptr);
 		write_uint32(block * 16 * 1024, ptr);
 		write_uint32(16 * 1024, ptr);
-		error_code ec;
 		boost::asio::async_write(s, boost::asio::buffer(m, sizeof(msg) - 1)
 			, std::bind(&peer_conn::on_req_sent, this, m, _1, _2));
 
@@ -679,7 +676,7 @@ struct peer_conn
 
 	void write_piece(piece_index_t const piece, int start, int length)
 	{
-		generate_block({write_buffer, static_cast<std::size_t>(length / 4)}
+		generate_block({write_buffer, length / 4}
 			, piece, start);
 
 		if (corrupt)
@@ -793,13 +790,13 @@ void generate_torrent(std::vector<char>& buf, int num_pieces, int num_files
 	const std::int64_t total_size = std::int64_t(piece_size) * num_pieces;
 
 	std::int64_t s = total_size;
-	int i = 0;
+	int file_index = 0;
 	std::int64_t file_size = total_size / num_files;
 	while (s > 0)
 	{
 		char b[100];
-		std::snprintf(b, sizeof(b), "%s/stress_test%d", torrent_name, i);
-		++i;
+		std::snprintf(b, sizeof(b), "%s/stress_test%d", torrent_name, file_index);
+		++file_index;
 		fs.add_file(b, std::min(s, file_size));
 		s -= file_size;
 		file_size += 200;
@@ -863,7 +860,7 @@ void generate_data(char const* path, torrent_info const& ti)
 			generate_block(piece, i, j);
 			int const left_in_piece = ti.piece_size(i) - j;
 			iovec_t const b = { reinterpret_cast<char*>(piece)
-				, size_t(std::min(left_in_piece, 0x4000))};
+				, std::min(left_in_piece, 0x4000)};
 			storage_error error;
 			st->writev(b, i, j, open_mode::write_only, error);
 			if (error)

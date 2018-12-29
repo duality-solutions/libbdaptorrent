@@ -110,6 +110,7 @@ TORRENT_TEST(parse_peers4)
 	}
 }
 
+#if TORRENT_USE_I2P
 TORRENT_TEST(parse_i2p_peers)
 {
 	// d8:completei8e10:incompletei4e8:intervali3600e5:peers352: ...
@@ -171,6 +172,7 @@ TORRENT_TEST(parse_i2p_peers)
 			, "ufunemgwuun5t2sn3oay4zv7jvwdezwcrirgwr6b2fjgczvaowvq.b32.i2p");
 	}
 }
+#endif // TORRENT_USE_I2P
 
 TORRENT_TEST(parse_interval)
 {
@@ -506,7 +508,6 @@ TORRENT_TEST(current_tracker)
 	pack.set_int(settings_pack::tracker_completion_timeout, 2);
 	pack.set_int(settings_pack::tracker_receive_timeout, 1);
 	pack.set_str(settings_pack::listen_interfaces, "0.0.0.0:39775");
-	//pack.set_int(settings_pack::alert_mask, alert::tracker_notification);
 
 	std::unique_ptr<lt::session> s(new lt::session(pack));
 
@@ -665,7 +666,6 @@ void test_stop_tracker_timeout(int const timeout)
 	settings_pack p = settings();
 	p.set_bool(settings_pack::announce_to_all_trackers, true);
 	p.set_bool(settings_pack::announce_to_all_tiers, true);
-	p.set_int(settings_pack::alert_mask, alert::all_categories);
 	p.set_str(settings_pack::listen_interfaces, "0.0.0.0:6881");
 	p.set_int(settings_pack::stop_tracker_timeout, timeout);
 

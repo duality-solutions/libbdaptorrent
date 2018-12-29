@@ -49,12 +49,15 @@ function(_get_target_property_merging_configs _var_name _target_name _propert_na
 			endif()
 		endforeach()
 	endif()
+	# HACK for static libraries cmake populates link dependencies as $<LINK_ONLY:lib_name>.
+	# pkg-config does not support special handling for static libraries and as such we will remove
+	# that generator expression
+	string(REPLACE "$<LINK_ONLY:" "$<1:" vals "${vals}")
 	# HACK file(GENERATE), which we use for expanding generator expressions, is BUILD_INTERFACE,
-	# but we need INSTALL_INTERFACE here. As such, let us inter-change them.
+	# but we need INSTALL_INTERFACE here.
 	# See https://gitlab.kitware.com/cmake/cmake/issues/17984
-	string(REPLACE "$<BUILD_INTERFACE:" "$<TMP_INTERFACE:" vals "${vals}")
-	string(REPLACE "$<INSTALL_INTERFACE:" "@CMAKE_INSTALL_PREFIX@/$<BUILD_INTERFACE:" vals "${vals}")
-	string(REPLACE "$<TMP_INTERFACE:" "$<INSTALL_INTERFACE:" vals "${vals}")
+	string(REPLACE "$<BUILD_INTERFACE:" "$<0:" vals "${vals}")
+	string(REPLACE "$<INSTALL_INTERFACE:" "@CMAKE_INSTALL_PREFIX@/$<1:" vals "${vals}")
 	set(${_var_name} "${vals}" PARENT_SCOPE)
 endfunction()
 
@@ -133,7 +136,7 @@ function(_expand_targets _targets _libraries_var _include_dirs_var _compile_opti
 endfunction()
 
 # Generates and installs a pkg-config file for a given target
-function(generate_and_install_pkg_config_file _target)
+function(generate_and_install_pkg_config_file _target _packageName)
 	# collect target properties
 	_expand_targets(${_target}
 		_interface_link_libraries _interface_include_dirs
@@ -144,8 +147,7 @@ function(generate_and_install_pkg_config_file _target)
 		set(_output_name "${_target}")
 	endif()
 
-	# TODO make it robust
-	set(_output_name "lib${_output_name}")
+	set(_package_name "${_packageName}")
 
 	# remove standard include directories
 	foreach(d IN LISTS CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)

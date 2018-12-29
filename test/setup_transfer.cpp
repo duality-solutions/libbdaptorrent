@@ -51,6 +51,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/hex.hpp" // to_hex
 #include "libtorrent/aux_/vector.hpp"
 #include "libtorrent/aux_/path.hpp"
+#include "libtorrent/random.hpp"
 
 #include "test.hpp"
 #include "test_utils.hpp"
@@ -114,8 +115,7 @@ address rand_v4()
 sha1_hash rand_hash()
 {
 	sha1_hash ret;
-	for (int i = 0; i < 20; ++i)
-		ret[static_cast<std::size_t>(i)] = std::uint8_t(lt::random(0xff));
+	aux::random_bytes(ret);
 	return ret;
 }
 
@@ -166,7 +166,7 @@ std::map<std::string, std::int64_t> get_counters(lt::session& s)
 
 	static std::vector<stats_metric> metrics = session_stats_metrics();
 	for (auto const& m : metrics)
-		ret[m.name] = sa->counters()[static_cast<std::size_t>(m.value_index)];
+		ret[m.name] = sa->counters()[m.value_index];
 	return ret;
 }
 namespace {
@@ -623,7 +623,7 @@ lt::file_storage make_file_storage(span<const int> const file_sizes
 {
 	using namespace lt;
 	file_storage fs;
-	for (std::size_t i = 0; i != file_sizes.size(); ++i)
+	for (std::ptrdiff_t i = 0; i != file_sizes.size(); ++i)
 	{
 		char filename[200];
 		std::snprintf(filename, sizeof(filename), "test%d", int(i));
@@ -666,9 +666,9 @@ void create_random_files(std::string const& path, span<const int> file_sizes
 {
 	error_code ec;
 	aux::vector<char> random_data(300000);
-	for (std::size_t i = 0; i != file_sizes.size(); ++i)
+	for (std::ptrdiff_t i = 0; i != file_sizes.size(); ++i)
 	{
-		std::generate(random_data.begin(), random_data.end(), random_byte);
+		aux::random_bytes(random_data);
 		char filename[200];
 		std::snprintf(filename, sizeof(filename), "test%d", int(i));
 		char dirname[200];
@@ -691,7 +691,7 @@ void create_random_files(std::string const& path, span<const int> file_sizes
 		while (to_write > 0)
 		{
 			int const s = std::min(to_write, static_cast<int>(random_data.size()));
-			iovec_t const b = { random_data.data(), size_t(s)};
+			iovec_t const b = { random_data.data(), s};
 			f.writev(offset, b, ec);
 			if (ec) std::printf("failed to write file \"%s\": (%d) %s\n"
 				, full_path.c_str(), ec.value(), ec.message().c_str());
@@ -794,16 +794,7 @@ setup_transfer(lt::session* ses1, lt::session* ses2, lt::session* ses3
 	ses2->set_peer_class_filter(f);
 	if (ses3) ses3->set_peer_class_filter(f);
 
-	auto const mask = alert::all_categories
-		& ~(
-			alert::performance_warning
-#if TORRENT_ABI_VERSION == 1
-			| alert::progress_notification
-#endif
-			| alert::stats_notification);
-
 	settings_pack pack;
-	pack.set_int(settings_pack::alert_mask, mask);
 	if (ses3) pack.set_bool(settings_pack::allow_multiple_connections_per_ip, true);
 	pack.set_int(settings_pack::mixed_mode_algorithm, settings_pack::prefer_tcp);
 	pack.set_int(settings_pack::max_failcount, 1);

@@ -70,7 +70,7 @@ namespace libtorrent {
 
 	hasher512& hasher512::operator=(hasher512 const& h) &
 	{
-		if (this == &h) return;
+		if (this == &h) return *this;
 		gcry_md_close(m_context);
 		gcry_md_copy(&m_context, h.m_context);
 		return *this;
@@ -90,9 +90,11 @@ namespace libtorrent {
 #elif TORRENT_USE_CRYPTOAPI_SHA_512
 		m_context.update(data);
 #elif defined TORRENT_USE_LIBCRYPTO
-		SHA512_Update(&m_context, reinterpret_cast<unsigned char const*>(data.data()), data.size());
+		SHA512_Update(&m_context, reinterpret_cast<unsigned char const*>(data.data())
+			, static_cast<std::size_t>(data.size()));
 #else
-		SHA512_update(&m_context, reinterpret_cast<unsigned char const*>(data.data()), data.size());
+		SHA512_update(&m_context, reinterpret_cast<unsigned char const*>(data.data())
+			, static_cast<std::size_t>(data.size()));
 #endif
 		return *this;
 	}

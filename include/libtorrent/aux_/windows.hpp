@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2009-2018, Arvid Norberg
+Copyright (c) 2018, Arvid Norberg, Steven Siloti
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,22 +30,21 @@ POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#ifndef TORRENT_ALLOCATOR_HPP_INCLUDED
-#define TORRENT_ALLOCATOR_HPP_INCLUDED
+#ifndef TORRENT_WINDOWS_HPP_INCLUDED
+#define TORRENT_WINDOWS_HPP_INCLUDED
 
-#include <cstddef>
-#include "libtorrent/config.hpp"
-
-namespace libtorrent {
-
-	TORRENT_EXTRA_EXPORT int page_size();
-
-	TORRENT_EXTRA_EXPORT char* page_malloc(std::size_t bytes);
-	TORRENT_EXTRA_EXPORT void page_free(char* block);
-#ifdef TORRENT_DEBUG_BUFFERS
-	TORRENT_EXTRA_EXPORT bool page_in_use(char const* block);
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
-
-}
-
+#ifndef VC_EXTRALEAN
+#define VC_EXTRALEAN
 #endif
+#ifndef STRICT
+#define STRICT
+#endif
+#include <windows.h>
+
+#endif // TORRENT_WINDOWS_HPP_INCLUDED
+
+
+

@@ -57,7 +57,7 @@ int touch_file(std::string const& filename, int size)
 	error_code ec;
 	if (!f.open(filename, open_mode::write_only, ec)) return -1;
 	if (ec) return -1;
-	iovec_t b = {&v[0], v.size()};
+	iovec_t b = {v};
 	std::int64_t written = f.writev(0, b, ec);
 	if (written != int(v.size())) return -3;
 	if (ec) return -3;
@@ -205,6 +205,30 @@ TORRENT_TEST(paths)
 	TEST_EQUAL(is_root_path("/"), true);
 #endif
 
+#ifdef TORRENT_WINDOWS
+	TEST_CHECK(compare_path("c:\\blah\\", "c:\\blah"));
+	TEST_CHECK(compare_path("c:\\blah", "c:\\blah"));
+	TEST_CHECK(compare_path("c:\\blah/", "c:\\blah"));
+	TEST_CHECK(compare_path("c:\\blah", "c:\\blah\\"));
+	TEST_CHECK(compare_path("c:\\blah", "c:\\blah"));
+	TEST_CHECK(compare_path("c:\\blah", "c:\\blah/"));
+
+	TEST_CHECK(!compare_path("c:\\bla", "c:\\blah/"));
+	TEST_CHECK(!compare_path("c:\\bla", "c:\\blah"));
+	TEST_CHECK(!compare_path("c:\\blah", "c:\\bla"));
+	TEST_CHECK(!compare_path("c:\\blah\\sdf", "c:\\blah"));
+#else
+	TEST_CHECK(compare_path("/blah", "/blah"));
+	TEST_CHECK(compare_path("/blah/", "/blah"));
+	TEST_CHECK(compare_path("/blah", "/blah"));
+	TEST_CHECK(compare_path("/blah", "/blah/"));
+
+	TEST_CHECK(!compare_path("/bla", "/blah/"));
+	TEST_CHECK(!compare_path("/bla", "/blah"));
+	TEST_CHECK(!compare_path("/blah", "/bla"));
+	TEST_CHECK(!compare_path("/blah/sdf", "/blah"));
+#endif
+
 	// if has_parent_path() returns false
 	// parent_path() should return the empty string
 	TEST_EQUAL(parent_path("blah"), "");
@@ -294,7 +318,7 @@ TORRENT_TEST(file)
 	TEST_EQUAL(ec, error_code());
 	if (ec) std::printf("%s\n", ec.message().c_str());
 	char test[] = "test";
-	size_t const test_word_size = sizeof(test) - 1;
+	int const test_word_size = int(sizeof(test)) - 1;
 	iovec_t b = {test, test_word_size};
 	TEST_EQUAL(f.writev(0, b, ec), test_word_size);
 	if (ec)

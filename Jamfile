@@ -359,20 +359,13 @@ rule openssl-lib-path ( properties * )
 		# brew install openssl
 		OPENSSL_LIB = /usr/local/opt/openssl/lib ;
 	}
-	else if <target-os>windows in $(properties)
-		&& <toolset>gcc in $(properties)
-		&& $(OPENSSL_LIB) = ""
-	{
-		# on mingw, assume openssl is installed in c:\OpenSSL-Win32 by default
-		OPENSSL_LIB = c:\\OpenSSL-Win32\\lib ;
-	}
 	else if <target-os>windows in $(properties) && $(OPENSSL_LIB) = ""
 	{
-		# on windows, just assume openssl is installed to c:\openssl
+		# on windows, assume openssl is installed to c:\OpenSSL-Win32
 		if <address-model>64 in $(properties)
-		{ OPENSSL_LIB = c:\\openssl\\lib64 ; }
+		{ OPENSSL_LIB = c:\\OpenSSL-Win64\\lib ; }
 		else
-		{ OPENSSL_LIB = c:\\openssl\\lib ; }
+		{ OPENSSL_LIB = c:\\OpenSSL-Win32\\lib ; }
 	}
 
 	local result ;
@@ -392,21 +385,13 @@ rule openssl-include-path ( properties * )
 		# brew install openssl
 		OPENSSL_INCLUDE = /usr/local/opt/openssl/include ;
 	}
-	else if <target-os>windows in $(properties)
-		&& <toolset>gcc in $(properties)
-		&& $(OPENSSL_INCLUDE) = ""
-	{
-		# on mingw, assume openssl is installed in c:\OpenSSL-Win32 by default
-		OPENSSL_INCLUDE = c:\\OpenSSL-Win32\\include ;
-	}
 	else if <target-os>windows in $(properties) && $(OPENSSL_INCLUDE) = ""
 	{
-		# on windows, just assume openssl is installed to c:\openssl
-		# not sure if there's a better way to find out where it may be
+		# on windows, assume openssl is installed to c:\OpenSSL-Win32
 		if <address-model>64 in $(properties)
-		{ OPENSSL_INCLUDE = c:\\openssl\\include64 ; }
+		{ OPENSSL_INCLUDE = c:\\OpenSSL-Win64\\include ; }
 		else
-		{ OPENSSL_INCLUDE = c:\\openssl\\include ; }
+		{ OPENSSL_INCLUDE = c:\\OpenSSL-Win32\\include ; }
 	}
 
 	local result ;
@@ -439,7 +424,7 @@ feature.compose <asserts>on : <define>TORRENT_USE_ASSERTS=1 ;
 feature.compose <asserts>production : <define>TORRENT_USE_ASSERTS=1 <define>TORRENT_PRODUCTION_ASSERTS=1 ;
 feature.compose <asserts>system : <define>TORRENT_USE_ASSERTS=1 <define>TORRENT_USE_SYSTEM_ASSERTS=1 ;
 
-feature windows-version : vista win7 xp : composite propagated link-incompatible ;
+feature windows-version : vista win7 xp : composite propagated ;
 feature.compose <windows-version>vista : <define>_WIN32_WINNT=0x0600 ;
 feature.compose <windows-version>win7 : <define>_WIN32_WINNT=0x0601 ;
 feature.compose <windows-version>xp : <define>_WIN32_WINNT=0x0501 ;
@@ -455,10 +440,6 @@ feature.compose <picker-debugging>on : <define>TORRENT_DEBUG_REFCOUNTS ;
 
 feature simulator : off on : composite propagated link-incompatible ;
 feature.compose <simulator>on : <define>TORRENT_BUILD_SIMULATOR ;
-
-feature piece-allocator : valloc memalign posix_memalign : composite propagated ;
-feature.compose <piece-allocator>memalign : <define>TORRENT_USE_MEMALIGN=1 ;
-feature.compose <piece-allocator>posix_memalign : <define>TORRENT_USE_POSIX_MEMALIGN=1 ;
 
 feature invariant-checks : off on full : composite propagated link-incompatible ;
 feature.compose <invariant-checks>on : <define>TORRENT_USE_INVARIANT_CHECKS=1 ;
@@ -551,44 +532,26 @@ lib shell32 : : <name>shell32 ;
 lib gdi32 : : <name>gdi32 ;
 lib z : : <link>shared <name>z ;
 
-# windows variants for libssl and libcrypto (they have different names and some
-# additional dependencies)
-lib crypto
-	: # sources
-	: # requirements
-	<target-os>windows
-	<openssl-version>pre1.1
-	<name>libeay32
-	<conditional>@openssl-lib-path
-	: # default-build
-	: # usage-requirements
-	<conditional>@openssl-include-path
-	<library>advapi32
-	<library>user32
-	<library>shell32
-	<library>gdi32
-	;
+# openssl libraries on windows
+alias ssl-deps : advapi32 user32 shell32 gdi32 ;
 
-lib ssl
-	: # sources
-	: # requirements
-	<target-os>windows
-	<openssl-version>pre1.1
-	<name>ssleay32
-	<use>crypto
-	<conditional>@openssl-lib-path
-	: # default-build
-	: # usage-requirments
-	<conditional>@openssl-include-path
-	<library>advapi32
-	<library>user32
-	<library>shell32
-	<library>gdi32
-	;
+# pre OpenSSL 1.1 windows
+lib crypto : ssl-deps : <target-os>windows <openssl-version>pre1.1 <name>libeay32
+	<conditional>@openssl-lib-path : : <conditional>@openssl-include-path ;
+lib ssl : ssl-deps : <target-os>windows <openssl-version>pre1.1 <name>ssleay32
+	<use>crypto <conditional>@openssl-lib-path : : <conditional>@openssl-include-path ;
 
+# OpenSSL 1.1+ windows
+lib crypto : ssl-deps : <toolset>msvc <openssl-version>1.1 <name>libcrypto
+	<conditional>@openssl-lib-path : : <conditional>@openssl-include-path ;
+lib ssl : ssl-deps : <toolset>msvc <openssl-version>1.1 <name>libssl <use>crypto
+	<conditional>@openssl-lib-path : : <conditional>@openssl-include-path ;
 
-lib crypto : : <name>crypto <use>z <conditional>@openssl-lib-path  : : <conditional>@openssl-include-path ;
-lib ssl : : <name>ssl <use>crypto <conditional>@openssl-lib-path : : <conditional>@openssl-include-path ;
+# generic OpenSSL
+lib crypto : : <name>crypto <use>z <conditional>@openssl-lib-path : :
+	<conditional>@openssl-include-path ;
+lib ssl : : <name>ssl <use>crypto <conditional>@openssl-lib-path : :
+	<conditional>@openssl-include-path ;
 
 lib dbghelp : : <name>dbghelp ;
 
@@ -615,7 +578,6 @@ lib iphlpapi : : <name>iphlpapi <link>shared ;
 SOURCES =
 	alert
 	alert_manager
-	allocator
 	announce_entry
 	assert
 	bandwidth_limit

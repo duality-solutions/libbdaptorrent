@@ -2,8 +2,7 @@
 BitTorrent extension for arbitrary DHT store
 ============================================
 
-:Author: Arvid Norberg, arvid@libtorrent.org
-:Version: 1.2.0
+.. include:: header.rst
 
 .. contents:: Table of contents
   :depth: 2
@@ -57,7 +56,7 @@ a public key, a sequence number, signature and an optional salt (``k``, ``seq``,
 ``sig`` and ``salt``).
 
 ``get`` requests for mutable items and immutable items cannot be distinguished
-from eachother. An implementation can either store mutable and immutable items
+from each other. An implementation can either store mutable and immutable items
 in the same hash table internally, or in separate ones and potentially do two
 lookups for ``get`` requests.
 

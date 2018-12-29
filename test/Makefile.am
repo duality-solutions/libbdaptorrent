@@ -49,6 +49,7 @@ test_programs = \
   test_ffs                   \
   test_session_params        \
   test_span                  \
+  test_io                    \
   test_alloca
 
 if ENABLE_TESTS
@@ -58,75 +59,98 @@ endif
 
 TESTS = $(test_programs)
 
+TEST_TORRENTS = \
+  absolute_filename.torrent \
+  backslash_path.torrent \
+  bad_name.torrent \
+  base.torrent \
+  creation_date.torrent \
+  duplicate_files.torrent \
+  duplicate_web_seeds.torrent \
+  empty_httpseed.torrent \
+  empty_path.torrent \
+  empty_path_multi.torrent \
+  hidden_parent_path.torrent \
+  httpseed.torrent \
+  invalid_file_size.torrent \
+  invalid_filename.torrent \
+  invalid_filename2.torrent \
+  invalid_info.torrent \
+  invalid_merkle.torrent \
+  invalid_name.torrent \
+  invalid_name2.torrent \
+  invalid_name3.torrent \
+  invalid_path_list.torrent \
+  invalid_piece_len.torrent \
+  invalid_pieces.torrent \
+  invalid_root_hash.torrent \
+  invalid_root_hash2.torrent \
+  invalid_symlink.torrent \
+  large.torrent \
+  long_name.torrent \
+  many_pieces.torrent \
+  missing_path_list.torrent \
+  missing_piece_len.torrent \
+  negative_file_size.torrent \
+  negative_piece_len.torrent \
+  negative_size.torrent \
+  no_creation_date.torrent \
+  no_files.torrent \
+  no_name.torrent \
+  pad_file.torrent \
+  pad_file_no_path.torrent \
+  parent_path.torrent \
+  root_hash.torrent \
+  sample.torrent \
+  single_multi_file.torrent \
+  slash_path.torrent \
+  slash_path2.torrent \
+  slash_path3.torrent \
+  string.torrent \
+  symlink1.torrent \
+  symlink_zero_size.torrent \
+  unaligned_pieces.torrent \
+  unordered.torrent \
+  url_list.torrent \
+  url_list2.torrent \
+  url_list3.torrent \
+  url_seed.torrent \
+  url_seed_multi.torrent \
+  url_seed_multi_space.torrent \
+  url_seed_multi_space_nolist.torrent \
+  whitespace_url.torrent
+
+MUTABLE_TEST_TORRENTS = \
+  test1.torrent \
+  test1_pad_files.torrent \
+  test1_single.torrent \
+  test1_single_padded.torrent \
+  test2.torrent \
+  test2_pad_files.torrent \
+  test3.torrent \
+  test3_pad_files.torrent
+
 EXTRA_DIST = Jamfile \
-  test_torrents/backslash_path.torrent \
-  test_torrents/base.torrent \
-  test_torrents/creation_date.torrent \
-  test_torrents/duplicate_files.torrent \
-  test_torrents/duplicate_web_seeds.torrent \
-  test_torrents/empty_httpseed.torrent \
-  test_torrents/empty_path.torrent \
-  test_torrents/empty_path_multi.torrent \
-  test_torrents/hidden_parent_path.torrent \
-  test_torrents/httpseed.torrent \
-  test_torrents/invalid_file_size.torrent \
-  test_torrents/invalid_info.torrent \
-  test_torrents/invalid_merkle.torrent \
-  test_torrents/invalid_name.torrent \
-  test_torrents/invalid_name2.torrent \
-  test_torrents/invalid_name3.torrent \
-  test_torrents/invalid_path_list.torrent \
-  test_torrents/invalid_piece_len.torrent \
-  test_torrents/invalid_pieces.torrent \
-  test_torrents/invalid_root_hash.torrent \
-  test_torrents/invalid_root_hash2.torrent \
-  test_torrents/invalid_symlink.torrent \
-  test_torrents/long_name.torrent \
-  test_torrents/missing_path_list.torrent \
-  test_torrents/missing_piece_len.torrent \
-  test_torrents/negative_file_size.torrent \
-  test_torrents/negative_piece_len.torrent \
-  test_torrents/negative_size.torrent \
-  test_torrents/no_creation_date.torrent \
-  test_torrents/no_name.torrent \
-  test_torrents/pad_file.torrent \
-  test_torrents/pad_file_no_path.torrent \
-  test_torrents/parent_path.torrent \
-  test_torrents/root_hash.torrent \
-  test_torrents/sample.torrent \
-  test_torrents/single_multi_file.torrent \
-  test_torrents/slash_path.torrent \
-  test_torrents/slash_path2.torrent \
-  test_torrents/slash_path3.torrent \
-  test_torrents/string.torrent \
-  test_torrents/symlink1.torrent \
-  test_torrents/symlink_zero_size.torrent \
-  test_torrents/unaligned_pieces.torrent \
-  test_torrents/unordered.torrent \
-  test_torrents/url_list.torrent \
-  test_torrents/url_list2.torrent \
-  test_torrents/url_list3.torrent \
-  test_torrents/url_seed.torrent \
-  test_torrents/url_seed_multi.torrent \
-  test_torrents/url_seed_multi_space.torrent \
-  test_torrents/url_seed_multi_space_nolist.torrent \
-  test_torrents/whitespace_url.torrent \
-  test_torrents/invalid_filename.torrent \
-  test_torrents/invalid_filename2.torrent \
-  mutable_test_torrents/test1.torrent \
-  mutable_test_torrents/test1_pad_files.torrent \
-  mutable_test_torrents/test1_single.torrent\
-  mutable_test_torrents/test1_single_padded.torrent \
-  mutable_test_torrents/test2.torrent \
-  mutable_test_torrents/test2_pad_files.torrent \
-  mutable_test_torrents/test3.torrent \
-  mutable_test_torrents/test3_pad_files.torrent \
+  $(addprefix test_torrents/,${TEST_TORRENTS}) \
+  $(addprefix mutable_test_torrents/,${MUTABLE_TEST_TORRENTS}) \
+  ssl/regenerate_test_certificate.sh \
+  ssl/cert_request.pem \
+  ssl/dhparams.pem \
+  ssl/invalid_peer_certificate.pem \
+  ssl/invalid_peer_private_key.pem \
+  ssl/peer_certificate.pem \
+  ssl/peer_private_key.pem \
+  ssl/root_ca_cert.pem \
+  ssl/root_ca_private.pem \
+  ssl/server.pem \
   zeroes.gz \
   corrupt.gz \
+  invalid1.gz \
   utf8_test.txt \
   web_server.py \
   socks.py \
-  http.py
+  http.py \
+  CMakeLists.txt
 
 EXTRA_PROGRAMS = $(test_programs)
 
@@ -166,7 +190,6 @@ test_primitives_SOURCES = \
   test_ip_voter.cpp \
   test_sliding_average.cpp \
   test_socket_io.cpp \
-  test_random.cpp \
   test_utf8.cpp \
   test_gzip.cpp \
   test_bitfield.cpp \
@@ -249,6 +272,7 @@ test_direct_dht_SOURCES = test_direct_dht.cpp
 test_ffs_SOURCES = test_ffs.cpp
 test_session_params_SOURCES = test_session_params.cpp
 test_span_SOURCES = test_span.cpp
+test_io_SOURCES = test_io.cpp
 test_alloca_SOURCES = test_alloca.cpp
 
 LDADD = libtest.la $(top_builddir)/src/libtorrent-rasterbar.la

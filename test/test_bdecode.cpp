@@ -44,9 +44,7 @@ TORRENT_TEST(integer)
 	bdecode_node e = bdecode(b, ec);
 	TEST_CHECK(!ec);
 	std::printf("%s\n", print_entry(e).c_str());
-	span<const char> section = e.data_section();
-	TEST_CHECK(std::memcmp(b, section.data(), section.size()) == 0);
-	TEST_EQUAL(section.size(), sizeof(b) - 1);
+	TEST_CHECK(span<char>(b, sizeof(b) - 1) == e.data_section());
 	TEST_EQUAL(e.type(), bdecode_node::int_t);
 	TEST_EQUAL(e.int_value(), 12453);
 }
@@ -84,9 +82,7 @@ TORRENT_TEST(string)
 	bdecode_node e = bdecode(b, ec);
 	TEST_CHECK(!ec);
 	std::printf("%s\n", print_entry(e).c_str());
-	span<const char> section = e.data_section();
-	TEST_CHECK(std::memcmp(b, section.data(), section.size()) == 0);
-	TEST_EQUAL(section.size(), sizeof(b) - 1);
+	TEST_CHECK(span<char>(b, sizeof(b) - 1) == e.data_section());
 	TEST_EQUAL(e.type(), bdecode_node::string_t);
 	TEST_EQUAL(e.string_value(), std::string("abcdefghijklmnopqrstuvwxyz"));
 	TEST_EQUAL(e.string_length(), 26);
@@ -104,9 +100,7 @@ TORRENT_TEST(string_prefix1)
 	bdecode_node e = bdecode(test, ec);
 	TEST_CHECK(!ec);
 	std::printf("%d bytes string\n", e.string_length());
-	span<const char> section = e.data_section();
-	TEST_CHECK(std::memcmp(test.c_str(), section.data(), section.size()) == 0);
-	TEST_EQUAL(section.size(), test.size());
+	TEST_CHECK(span<char const>(test) == e.data_section());
 	TEST_EQUAL(e.type(), bdecode_node::string_t);
 	TEST_EQUAL(e.string_length(), 1000000);
 	TEST_EQUAL(e.string_ptr(), test.c_str() + 8);
@@ -120,9 +114,7 @@ TORRENT_TEST(list)
 	bdecode_node e = bdecode(b, ec);
 	TEST_CHECK(!ec);
 	std::printf("%s\n", print_entry(e).c_str());
-	span<const char> section = e.data_section();
-	TEST_CHECK(std::memcmp(b, section.data(), section.size()) == 0);
-	TEST_EQUAL(section.size(), sizeof(b) - 1);
+	TEST_CHECK(span<char>(b, sizeof(b) - 1) == e.data_section());
 	TEST_EQUAL(e.type(), bdecode_node::list_t);
 	TEST_EQUAL(e.list_size(), 2);
 	TEST_EQUAL(e.list_at(0).type(), bdecode_node::int_t);
@@ -130,9 +122,7 @@ TORRENT_TEST(list)
 	TEST_EQUAL(e.list_at(0).int_value(), 12453);
 	TEST_EQUAL(e.list_at(1).string_value(), std::string("aaa"));
 	TEST_EQUAL(e.list_at(1).string_length(), 3);
-	section = e.list_at(1).data_section();
-	TEST_CHECK(std::memcmp("3:aaa", section.data(), section.size()) == 0);
-	TEST_EQUAL(section.size(), 5);
+	TEST_CHECK(span<char const>("3:aaa", 5) == e.list_at(1).data_section());
 }
 
 // test dict
@@ -143,9 +133,7 @@ TORRENT_TEST(dict)
 	bdecode_node e = bdecode(b, ec);
 	TEST_CHECK(!ec);
 	std::printf("%s\n", print_entry(e).c_str());
-	span<const char> section = e.data_section();
-	TEST_CHECK(std::memcmp(b, section.data(), section.size()) == 0);
-	TEST_EQUAL(section.size(), sizeof(b) - 1);
+	TEST_CHECK(span<char>(b, sizeof(b) - 1) == e.data_section());
 	TEST_EQUAL(e.type(), bdecode_node::dict_t);
 	TEST_EQUAL(e.dict_size(), 4);
 	TEST_EQUAL(e.dict_find("a").type(), bdecode_node::int_t);
@@ -429,7 +417,7 @@ TORRENT_TEST(bdecode_error)
 {
 	error_code ec(bdecode_errors::overflow);
 	TEST_EQUAL(ec.message(), "integer overflow");
-	TEST_EQUAL(ec.category().name(), std::string("bdecode error"));
+	TEST_EQUAL(ec.category().name(), std::string("bdecode"));
 	ec.assign(5434, bdecode_category());
 	TEST_EQUAL(ec.message(), "Unknown error");
 }
@@ -512,7 +500,7 @@ TORRENT_TEST(item_limit)
 {
 	char b[10240];
 	b[0] = 'l';
-	std::size_t i = 1;
+	std::ptrdiff_t i = 1;
 	for (i = 1; i < 10239; i += 2)
 		memcpy(&b[i], "0:", 2);
 	b[i] = 'e';
@@ -794,18 +782,18 @@ TORRENT_TEST(parse_int_overflow)
 
 TORRENT_TEST(parse_length_overflow)
 {
-	char const* b[] = {
-		"d1:a1919191010:11111",
-		"d2143289344:a4:aaaae",
-		"d214328934114:a4:aaaae",
-		"d9205357638345293824:a4:aaaae",
-		"d1:a9205357638345293824:11111",
+	string_view const b[] = {
+		"d1:a1919191010:11111"_sv,
+		"d2143289344:a4:aaaae"_sv,
+		"d214328934114:a4:aaaae"_sv,
+		"d9205357638345293824:a4:aaaae"_sv,
+		"d1:a9205357638345293824:11111"_sv
 	};
 
-	for (int i = 0; i < int(sizeof(b)/sizeof(b[0])); ++i)
+	for (auto const& buf : b)
 	{
 		error_code ec;
-		bdecode_node e = bdecode({b[i], strlen(b[i])}, ec);
+		bdecode_node e = bdecode(buf, ec);
 		TEST_EQUAL(ec, error_code(bdecode_errors::unexpected_eof));
 	}
 }

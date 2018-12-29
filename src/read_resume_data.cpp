@@ -86,7 +86,7 @@ namespace {
 		}
 
 		auto info_hash = rd.dict_find_string_value("info-hash");
-		if (info_hash.size() != sha1_hash::size())
+		if (info_hash.size() != static_cast<std::size_t>(sha1_hash::size()))
 		{
 			ec = errors::missing_info_hash;
 			return ret;
@@ -353,5 +353,24 @@ namespace {
 		if (ec) return add_torrent_params();
 
 		return read_resume_data(rd, ec);
+	}
+
+	add_torrent_params read_resume_data(bdecode_node const& rd)
+	{
+		error_code ec;
+		auto ret = read_resume_data(rd, ec);
+		if (ec) throw system_error(ec);
+		return ret;
+	}
+
+	add_torrent_params read_resume_data(span<char const> buffer)
+	{
+		error_code ec;
+		bdecode_node rd = bdecode(buffer, ec);
+		if (ec) throw system_error(ec);
+
+		auto ret = read_resume_data(rd, ec);
+		if (ec) throw system_error(ec);
+		return ret;
 	}
 }

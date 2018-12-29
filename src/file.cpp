@@ -114,11 +114,6 @@ struct iovec
 #endif
 #include <windows.h>
 #include <winioctl.h>
-#ifndef TORRENT_MINGW
-#include <direct.h> // for _getcwd, _mkdir
-#else
-#include <dirent.h>
-#endif
 #include <sys/types.h>
 #else
 // posix part
@@ -184,7 +179,7 @@ namespace {
 		, lt::span<HANDLE> h, std::int64_t file_offset)
 	{
 		std::memset(ol.data(), 0, sizeof(OVERLAPPED) * ol.size());
-		for (std::size_t i = 0; i < ol.size(); ++i)
+		for (std::ptrdiff_t i = 0; i < ol.size(); ++i)
 		{
 			ol[i].OffsetHigh = file_offset >> 32;
 			ol[i].Offset = file_offset & 0xffffffff;
@@ -193,7 +188,7 @@ namespace {
 			if (h[i] == nullptr)
 			{
 				// we failed to create the event, roll-back and return an error
-				for (std::size_t j = 0; j < i; ++j) CloseHandle(h[i]);
+				for (int j = 0; j < i; ++j) CloseHandle(h[i]);
 				return -1;
 			}
 			file_offset += bufs[i].iov_len;
@@ -315,11 +310,23 @@ namespace {
 	}
 } // namespace
 # else
+
+#  ifdef __clang__
+#   pragma clang diagnostic push
+#   pragma clang diagnostic ignored "-Wreserved-id-macro"
+#   pragma clang diagnostic ignored "-Wunused-macros"
+#  endif
+
 #  undef _BSD_SOURCE
 #  define _BSD_SOURCE // deprecated since glibc 2.20
 #  undef _DEFAULT_SOURCE
 #  define _DEFAULT_SOURCE
 #  include <sys/uio.h>
+
+#  ifdef __clang__
+#   pragma clang diagnostic pop
+#  endif
+
 # endif
 #endif
 
@@ -764,20 +771,20 @@ typedef struct _FILE_ALLOCATED_RANGE_BUFFER {
 
 	void gather_copy(span<iovec_t const> bufs, char* dst)
 	{
-		std::size_t offset = 0;
+		std::ptrdiff_t offset = 0;
 		for (auto buf : bufs)
 		{
-			std::memcpy(dst + offset, buf.data(), buf.size());
+			std::copy(buf.begin(), buf.end(), dst + offset);
 			offset += buf.size();
 		}
 	}
 
 	void scatter_copy(span<iovec_t const> bufs, char const* src)
 	{
-		std::size_t offset = 0;
+		std::ptrdiff_t offset = 0;
 		for (auto buf : bufs)
 		{
-			std::memcpy(buf.data(), src + offset, buf.size());
+			std::copy(src + offset, src + offset + buf.size(), buf.data());
 			offset += buf.size();
 		}
 	}
@@ -785,8 +792,8 @@ typedef struct _FILE_ALLOCATED_RANGE_BUFFER {
 	bool coalesce_read_buffers(span<iovec_t const>& bufs
 		, iovec_t& tmp)
 	{
-		auto const buf_size = aux::numeric_cast<std::size_t>(bufs_size(bufs));
-		auto buf = new char[buf_size];
+		auto const buf_size = bufs_size(bufs);
+		auto buf = new char[std::size_t(buf_size)];
 		tmp = { buf, buf_size };
 		bufs = span<iovec_t const>(tmp);
 		return true;
@@ -802,8 +809,8 @@ typedef struct _FILE_ALLOCATED_RANGE_BUFFER {
 	bool coalesce_write_buffers(span<iovec_t const>& bufs
 		, iovec_t& tmp)
 	{
-		auto const buf_size = aux::numeric_cast<std::size_t>(bufs_size(bufs));
-		auto buf = new char[buf_size];
+		auto const buf_size = bufs_size(bufs);
+		auto buf = new char[std::size_t(buf_size)];
 		gather_copy(bufs, buf);
 		tmp = { buf, buf_size };
 		bufs = span<iovec_t const>(tmp);
@@ -832,7 +839,7 @@ namespace {
 		for (auto const& b : bufs)
 		{
 			it->iov_base = b.data();
-			it->iov_len = b.size();
+			it->iov_len = std::size_t(b.size());
 			++it;
 		}
 
@@ -875,7 +882,8 @@ namespace {
 		std::int64_t ret = 0;
 		for (auto i : bufs)
 		{
-			std::int64_t const tmp_ret = f(fd, i.data(), i.size(), file_offset);
+			std::int64_t const tmp_ret = f(fd, i.data()
+				, static_cast<std::size_t>(i.size()), file_offset);
 			if (tmp_ret < 0)
 			{
 #ifdef TORRENT_WINDOWS
@@ -912,7 +920,7 @@ namespace {
 
 		for (auto i : bufs)
 		{
-			int tmp_ret = f(fd, i.data(), i.size());
+			int tmp_ret = f(fd, i.data(), static_cast<std::size_t>(i.size()));
 			if (tmp_ret < 0)
 			{
 #ifdef TORRENT_WINDOWS

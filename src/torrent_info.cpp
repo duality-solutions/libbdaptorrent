@@ -938,7 +938,7 @@ namespace {
 		// hash the info-field to calculate info-hash
 		auto section = info.data_section();
 		m_info_hash = hasher(section).final();
-		if (info.data_section().size() >= std::numeric_limits<std::uint32_t>::max())
+		if (info.data_section().size() >= std::numeric_limits<int>::max())
 		{
 			ec = errors::metadata_too_large;
 			return false;
@@ -949,7 +949,7 @@ namespace {
 		m_info_section.reset(new char[aux::numeric_cast<std::size_t>(m_info_section_size)]);
 		std::memcpy(m_info_section.get(), section.data(), aux::numeric_cast<std::size_t>(m_info_section_size));
 		TORRENT_ASSERT(section[0] == 'd');
-		TORRENT_ASSERT(section[aux::numeric_cast<std::size_t>(m_info_section_size - 1)] == 'e');
+		TORRENT_ASSERT(section[m_info_section_size - 1] == 'e');
 
 		// when translating a pointer that points into the 'info' tree's
 		// backing buffer, into a pointer to our copy of the info section,
@@ -1377,7 +1377,7 @@ namespace {
 		{
 			web_seed_entry ent(maybe_url_encode(url_seeds.string_value().to_string())
 				, web_seed_entry::url_seed);
-			if (m_flags & multifile)
+			if ((m_flags & multifile) && num_files() > 1)
 				ensure_trailing_slash(ent.url);
 			m_web_seeds.push_back(ent);
 		}
@@ -1392,7 +1392,7 @@ namespace {
 				if (url.string_length() == 0) continue;
 				web_seed_entry ent(maybe_url_encode(url.string_value().to_string())
 					, web_seed_entry::url_seed);
-				if (m_flags & multifile)
+				if ((m_flags & multifile) && num_files() > 1)
 					ensure_trailing_slash(ent.url);
 				if (!unique.insert(ent.url).second) continue;
 				m_web_seeds.push_back(ent);

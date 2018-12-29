@@ -67,7 +67,7 @@ namespace libtorrent {
 		, aux::session_impl* ses = nullptr);
 	TORRENT_EXTRA_EXPORT void run_all_updates(aux::session_impl& ses);
 
-	TORRENT_EXPORT int setting_by_name(std::string const& name);
+	TORRENT_EXPORT int setting_by_name(string_view name);
 	TORRENT_EXPORT char const* name_for_setting(int s);
 
 	// returns a settings_pack with every setting set to its default value
@@ -590,7 +590,7 @@ namespace libtorrent {
 			// ``SHARE_READ`` and ``SHARE_WRITE`` on windows. This might prevent
 			// 3rd party processes from corrupting the files under libtorrent's
 			// feet.
-			lock_files,
+			lock_files TORRENT_DEPRECATED_ENUM,
 #else
 			deprecated_lock_files,
 #endif
@@ -628,7 +628,7 @@ namespace libtorrent {
 			// closed, and incoming connections will only be accepted through a
 			// SOCKS5 or I2P proxy (if a peer proxy is set up and is run on the
 			// same machine as the tracker proxy).
-			force_proxy,
+			force_proxy TORRENT_DEPRECATED_ENUM,
 #else
 			deprecated_force_proxy,
 #endif
@@ -654,7 +654,7 @@ namespace libtorrent {
 			// cache blocks. Enabling it makes the cache perform better at high
 			// throughput. It also makes the cache less likely and slower at
 			// returning memory back to the system, once allocated.
-			use_disk_cache_pool,
+			use_disk_cache_pool TORRENT_DEPRECATED_ENUM,
 #else
 			deprecated_use_disk_cache_pool,
 #endif
@@ -989,7 +989,7 @@ namespace libtorrent {
 			// 2 GiB to avoid exceeding the virtual address space limit.
 			cache_size,
 #if TORRENT_ABI_VERSION == 1
-			cache_buffer_chunk_size,
+			cache_buffer_chunk_size TORRENT_DEPRECATED_ENUM,
 #else
 			deprecated_cache_buffer_chunk_size,
 #endif
@@ -1486,12 +1486,14 @@ namespace libtorrent {
 			predictive_piece_announce,
 
 			// for some aio back-ends, ``aio_threads`` specifies the number of
-			// io-threads to use,  and ``aio_max`` the max number of outstanding
-			// jobs.
+			// io-threads to use.
 			aio_threads,
-			aio_max,
 
 #if TORRENT_ABI_VERSION == 1
+			// for some aio back-ends, ``aio_max`` specifies the max number of
+			// outstanding jobs.
+			aio_max TORRENT_DEPRECATED_ENUM,
+
 			// .. note:: This is not implemented
 			//
 			// ``network_threads`` is the number of threads to use to call
@@ -1511,6 +1513,7 @@ namespace libtorrent {
 			ssl_listen TORRENT_DEPRECATED_ENUM,
 #else
 			// hidden
+			deprecated_aio_max,
 			deprecated_network_threads,
 			deprecated_ssl_listen,
 #endif
@@ -1668,41 +1671,41 @@ namespace libtorrent {
 			max_int_setting_internal
 		};
 
-		enum settings_counts_t
+		enum settings_counts_t : std::uint8_t
 		{
 			num_string_settings = max_string_setting_internal - string_type_base,
 			num_bool_settings = max_bool_setting_internal - bool_type_base,
 			num_int_settings = max_int_setting_internal - int_type_base
 		};
 
-		enum suggest_mode_t { no_piece_suggestions = 0, suggest_read_cache = 1 };
+		enum suggest_mode_t : std::uint8_t { no_piece_suggestions = 0, suggest_read_cache = 1 };
 
-		enum choking_algorithm_t
+		enum choking_algorithm_t : std::uint8_t
 		{
 			fixed_slots_choker = 0,
 			rate_based_choker = 2,
 			bittyrant_choker = 3
 		};
 
-		enum seed_choking_algorithm_t
+		enum seed_choking_algorithm_t : std::uint8_t
 		{
 			round_robin,
 			fastest_upload,
 			anti_leech
 		};
 
-		enum io_buffer_mode_t
+		enum io_buffer_mode_t : std::uint8_t
 		{
 			enable_os_cache = 0,
 #if TORRENT_ABI_VERSION == 1
 			disable_os_cache_for_aligned_files TORRENT_DEPRECATED_ENUM = 2,
 #else
-			deprecated = 1,
+			deprecated_disable_os_cache_for_aligned_files = 1,
 #endif
 			disable_os_cache = 2
 		};
 
-		enum bandwidth_mixed_algo_t
+		enum bandwidth_mixed_algo_t : std::uint8_t
 		{
 			// disables the mixed mode bandwidth balancing
 			prefer_tcp = 0,
@@ -1714,7 +1717,7 @@ namespace libtorrent {
 
 		// the encoding policy options for use with
 		// settings_pack::out_enc_policy and settings_pack::in_enc_policy.
-		enum enc_policy
+		enum enc_policy : std::uint8_t
 		{
 			// Only encrypted connections are allowed. Incoming connections that
 			// are not encrypted are closed and if the encrypted outgoing
@@ -1733,7 +1736,7 @@ namespace libtorrent {
 
 		// the encryption levels, to be used with
 		// settings_pack::allowed_enc_level.
-		enum enc_level
+		enum enc_level : std::uint8_t
 		{
 			// use only plaintext encryption
 			pe_plaintext = 1,
@@ -1743,7 +1746,7 @@ namespace libtorrent {
 			pe_both = 3
 		};
 
-		enum proxy_type_t
+		enum proxy_type_t : std::uint8_t
 		{
 			// This is the default, no proxy server is used, all other fields are
 			// ignored.

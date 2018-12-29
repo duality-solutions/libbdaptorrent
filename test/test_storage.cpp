@@ -60,8 +60,8 @@ using namespace lt;
 
 namespace {
 
-constexpr std::size_t piece_size = 16 * 1024 * 16;
-constexpr std::size_t half = piece_size / 2;
+constexpr int piece_size = 16 * 1024 * 16;
+constexpr int half = piece_size / 2;
 
 void on_check_resume_data(status_t const status, storage_error const& error, bool* done)
 {
@@ -747,8 +747,7 @@ void test_fastresume(bool const test_deprecated)
 		else
 #endif
 		{
-			p = read_resume_data(resume_data, ec);
-			TEST_CHECK(!ec);
+			p = read_resume_data(resume_data);
 		}
 
 		p.flags &= ~torrent_flags::paused;
@@ -800,12 +799,7 @@ TORRENT_TEST(rename_file)
 	file_storage fs;
 	std::shared_ptr<torrent_info> info = setup_torrent_info(fs, buf);
 
-	auto const mask = alert::all_categories
-		& ~(alert::performance_warning
-			| alert::stats_notification);
-
 	settings_pack pack = settings();
-	pack.set_int(settings_pack::alert_mask, mask);
 	pack.set_bool(settings_pack::disable_hash_checks, true);
 	lt::session ses(pack);
 
@@ -933,8 +927,7 @@ void test_rename_file_fastresume(bool test_deprecated)
 		else
 #endif
 		{
-			p = read_resume_data(resume_data, ec);
-			TEST_CHECK(!ec);
+			p = read_resume_data(resume_data);
 		}
 		p.ti = std::make_shared<torrent_info>(std::cref(*t));
 		p.save_path = combine_path(test_path, "tmp2");
@@ -989,8 +982,8 @@ void alloc_iov(iovec_t* iov, int num_bufs)
 {
 	for (int i = 0; i < num_bufs; ++i)
 	{
-		iov[i] = { new char[num_bufs * (i + 1)]
-			, static_cast<std::size_t>(num_bufs * (i + 1)) };
+		iov[i] = { new char[static_cast<std::size_t>(num_bufs * (i + 1))]
+			, num_bufs * (i + 1) };
 	}
 }
 
@@ -1088,7 +1081,7 @@ TORRENT_TEST(iovec_bufs_size)
 
 		int expected_size = 0;
 		for (int k = 0; k < i; ++k) expected_size += i * (k + 1);
-		TEST_EQUAL(bufs_size({iov, size_t(i)}), expected_size);
+		TEST_EQUAL(bufs_size({iov, i}), expected_size);
 
 		free_iov(iov, i);
 	}
@@ -1191,7 +1184,7 @@ struct test_read_fileop
 		while (local_size > 0)
 		{
 			int const len = std::min(int(bufs.front().size()), local_size);
-			auto local_buf = bufs.front().first(std::size_t(len));
+			auto local_buf = bufs.front().first(len);
 			for (char& v : local_buf)
 			{
 				v = char(m_counter & 0xff);
@@ -1257,14 +1250,14 @@ TORRENT_TEST(readwritev_stripe_1)
 	test_fileop fop(1);
 	storage_error ec;
 
-	TEST_CHECK(bufs_size({iov, size_t(num_bufs)}) >= fs.total_size());
+	TEST_CHECK(bufs_size({iov, num_bufs}) >= fs.total_size());
 
 	iovec_t iov2[num_bufs];
 	aux::copy_bufs(iov, int(fs.total_size()), iov2);
 	int num_bufs2 = count_bufs(iov2, int(fs.total_size()));
 	TEST_CHECK(num_bufs2 <= num_bufs);
 
-	int ret = readwritev(fs, {iov2, size_t(num_bufs2)}, piece_index_t(0), 0, ec
+	int ret = readwritev(fs, {iov2, num_bufs2}, piece_index_t(0), 0, ec
 		, std::ref(fop));
 
 	TEST_EQUAL(ret, fs.total_size());
@@ -1289,7 +1282,7 @@ TORRENT_TEST(readwritev_single_buffer)
 	storage_error ec;
 
 	std::vector<char> buf(size_t(fs.total_size()));
-	iovec_t iov = { &buf[0], buf.size() };
+	iovec_t iov = { &buf[0], int(buf.size()) };
 	fill_pattern(&iov, 1);
 
 	int ret = readwritev(fs, iov, piece_index_t(0), 0, ec, std::ref(fop));
@@ -1314,7 +1307,7 @@ TORRENT_TEST(readwritev_read)
 	storage_error ec;
 
 	std::vector<char> buf(size_t(fs.total_size()));
-	iovec_t iov = { &buf[0], buf.size() };
+	iovec_t iov = { &buf[0], int(buf.size()) };
 
 	// read everything
 	int ret = readwritev(fs, iov, piece_index_t(0), 0, ec, std::ref(fop));
@@ -1330,8 +1323,7 @@ TORRENT_TEST(readwritev_read_short)
 	storage_error ec;
 
 	std::vector<char> buf(size_t(fs.total_size()));
-	iovec_t iov = { &buf[0]
-		, static_cast<size_t>(fs.total_size()) };
+	iovec_t iov = { buf.data(), static_cast<std::ptrdiff_t>(fs.total_size()) };
 
 	// read everything
 	int ret = readwritev(fs, iov, piece_index_t(0), 0, ec, std::ref(fop));
@@ -1350,8 +1342,7 @@ TORRENT_TEST(readwritev_error)
 	storage_error ec;
 
 	std::vector<char> buf(size_t(fs.total_size()));
-	iovec_t iov = { &buf[0]
-		, static_cast<size_t>(fs.total_size()) };
+	iovec_t iov = { buf.data(), static_cast<std::ptrdiff_t>(fs.total_size()) };
 
 	// read everything
 	int ret = readwritev(fs, iov, piece_index_t(0), 0, ec, std::ref(fop));
@@ -1377,8 +1368,7 @@ TORRENT_TEST(readwritev_zero_size_files)
 	storage_error ec;
 
 	std::vector<char> buf(size_t(fs.total_size()));
-	iovec_t iov = { &buf[0]
-		, static_cast<size_t>(fs.total_size()) };
+	iovec_t iov = { buf.data(), static_cast<std::ptrdiff_t>(fs.total_size()) };
 
 	// read everything
 	int ret = readwritev(fs, iov, piece_index_t(0), 0, ec, std::ref(fop));

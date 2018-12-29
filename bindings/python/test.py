@@ -70,7 +70,8 @@ class test_torrent_handle(unittest.TestCase):
         self.ses = lt.session(settings)
         self.ti = lt.torrent_info('url_seed_multi.torrent')
         self.h = self.ses.add_torrent({
-            'ti': self.ti, 'save_path': os.getcwd()})
+            'ti': self.ti, 'save_path': os.getcwd(),
+            'flags': lt.torrent_flags.default_flags})
 
     def test_torrent_handle(self):
         self.setup()
@@ -296,6 +297,7 @@ class test_torrent_info(unittest.TestCase):
         self.assertEqual(f.file_name(0), 'test_torrent')
         self.assertEqual(f.file_size(0), 1234)
         self.assertEqual(info.total_size(), 1234)
+        self.assertEqual(info.creation_date(), 0)
 
     def test_metadata(self):
         ti = lt.torrent_info('base.torrent')
@@ -536,7 +538,8 @@ class test_session(unittest.TestCase):
         self.assertEqual(s.get_settings()['user_agent'], 'test123')
 
     def test_post_session_stats(self):
-        s = lt.session({'alert_mask': lt.alert.category_t.stats_notification, 'enable_dht': False})
+        s = lt.session({'alert_mask': lt.alert.category_t.stats_notification,
+                        'enable_dht': False})
         s.post_session_stats()
         alerts = []
         # first the stats headers log line. but not if logging is disabled
@@ -690,6 +693,23 @@ class test_operation_t(unittest.TestCase):
         self.assertEqual(lt.operation_name(lt.operation_t.mkdir), "mkdir")
         self.assertEqual(lt.operation_name(lt.operation_t.partfile_write), "partfile_write")
         self.assertEqual(lt.operation_name(lt.operation_t.hostname_lookup), "hostname_lookup")
+
+
+class test_error_code(unittest.TestCase):
+
+    def test_error_code(self):
+
+        a = lt.error_code()
+        a = lt.error_code(10, lt.libtorrent_category())
+        self.assertEqual(a.category().name(), 'libtorrent')
+
+        self.assertEqual(lt.libtorrent_category().name(), 'libtorrent')
+        self.assertEqual(lt.upnp_category().name(), 'upnp')
+        self.assertEqual(lt.http_category().name(), 'http')
+        self.assertEqual(lt.socks_category().name(), 'socks')
+        self.assertEqual(lt.bdecode_category().name(), 'bdecode')
+        self.assertEqual(lt.generic_category().name(), 'generic')
+        self.assertEqual(lt.system_category().name(), 'system')
 
 
 if __name__ == '__main__':

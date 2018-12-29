@@ -85,12 +85,7 @@ int main(int argc, char const* argv[]) try
 	std::vector<char> buf{std::istream_iterator<char>(ifs)
 		, std::istream_iterator<char>()};
 
-	lt::error_code ec;
-	lt::add_torrent_params atp = lt::read_resume_data(buf, ec);
-	if (ec) {
-		std::cerr << "failed to read resume data: " << ec.message() << std::endl;
-		return 1;
-	}
+	lt::add_torrent_params atp = lt::read_resume_data(buf);
 	lt::add_torrent_params magnet = lt::parse_magnet_uri(argv[1]);
 	if (atp.info_hash != magnet.info_hash) {
 		atp = std::move(magnet);
@@ -123,8 +118,8 @@ int main(int argc, char const* argv[]) try
 			if (auto rd = lt::alert_cast<lt::save_resume_data_alert>(a)) {
 				std::ofstream of(".resume_file", std::ios_base::binary);
 				of.unsetf(std::ios_base::skipws);
-				auto buf = write_resume_data_buf(rd->params);
-				of.write(buf.data(), buf.size());
+				auto const b = write_resume_data_buf(rd->params);
+				of.write(b.data(), b.size());
 			}
 
 			if (auto st = lt::alert_cast<lt::state_update_alert>(a)) {

@@ -247,6 +247,18 @@ namespace {
 			, default_pred, flags);
 	}
 
+namespace {
+	struct disk_aborter
+	{
+		explicit disk_aborter(disk_io_thread& dio) : m_dio(dio) {}
+		~disk_aborter() { m_dio.abort(true); }
+		disk_aborter(disk_aborter const&) = delete;
+		disk_aborter& operator=(disk_aborter const&) = delete;
+	private:
+		disk_io_thread& m_dio;
+	};
+}
+
 	void set_piece_hashes(create_torrent& t, std::string const& p
 		, std::function<void(piece_index_t)> const& f, error_code& ec)
 	{
@@ -279,6 +291,7 @@ namespace {
 
 		counters cnt;
 		disk_io_thread disk_thread(ios, cnt);
+		disk_aborter da(disk_thread);
 
 		aux::vector<download_priority_t, file_index_t> priorities;
 		sha1_hash info_hash;
@@ -320,7 +333,6 @@ namespace {
 #else
 		ios.run(ec);
 #endif
-		disk_thread.abort(true);
 	}
 
 	create_torrent::~create_torrent() = default;
@@ -381,8 +393,8 @@ namespace {
 			alignment = piece_size;
 
 		// make sure the size is an even power of 2
-#ifndef NDEBUG
-		for (int i = 0; i < 32; ++i)
+#if TORRENT_USE_ASSERTS
+		for (int i = 0; i < 31; ++i)
 		{
 			if (piece_size & (1 << i))
 			{
@@ -581,7 +593,7 @@ namespace {
 			{
 				entry& sympath_e = info["symlink path"];
 
-				std::string split = split_path(m_files.symlink(first));
+				std::string const split = split_path(m_files.symlink(first));
 				for (char const* e = split.c_str(); e != nullptr; e = next_path_element(e))
 					sympath_e.list().emplace_back(e);
 			}
@@ -602,12 +614,12 @@ namespace {
 					entry& file_e = files.list().back();
 					if (m_include_mtime && m_files.mtime(i)) file_e["mtime"] = m_files.mtime(i);
 					file_e["length"] = m_files.file_size(i);
-					entry& path_e = file_e["path"];
 
 					TORRENT_ASSERT(has_parent_path(m_files.file_path(i)));
 
 					{
-						std::string split = split_path(m_files.file_path(i));
+						entry& path_e = file_e["path"];
+						std::string const split = split_path(m_files.file_path(i));
 						TORRENT_ASSERT(split.c_str() == m_files.name());
 
 						for (char const* e = next_path_element(split.c_str());
@@ -630,7 +642,7 @@ namespace {
 					{
 						entry& sympath_e = file_e["symlink path"];
 
-						std::string split = split_path(m_files.symlink(i));
+						std::string const split = split_path(m_files.symlink(i));
 						for (char const* e = split.c_str(); e != nullptr; e = next_path_element(e))
 							sympath_e.list().emplace_back(e);
 					}

@@ -818,7 +818,9 @@ void bind_session()
     {
         scope s = class_<dummy10>("session_flags_t");
         s.attr("add_default_plugins") = lt::session::add_default_plugins;
+#if TORRENT_ABI_VERSION == 1
         s.attr("start_default_features") = lt::session::start_default_features;
+#endif
     }
 
     {
@@ -836,6 +838,7 @@ void bind_session()
     s.attr("stop_when_ready") = torrent_flags::stop_when_ready;
     s.attr("override_trackers") = torrent_flags::override_trackers;
     s.attr("override_web_seeds") = torrent_flags::override_web_seeds;
+    s.attr("default_flags") = torrent_flags::default_flags;
     }
 
 #if TORRENT_ABI_VERSION == 1
@@ -859,6 +862,7 @@ void bind_session()
     s.attr("flag_merge_resume_trackers") = add_torrent_params::flag_merge_resume_trackers;
     s.attr("flag_use_resume_save_path") = add_torrent_params::flag_use_resume_save_path;
     s.attr("flag_merge_resume_http_seeds") = add_torrent_params::flag_merge_resume_http_seeds;
+    s.attr("default_flags") = add_torrent_params::flag_default_flags;
     }
 #endif
 
@@ -940,8 +944,7 @@ void bind_session()
         .def("__init__", boost::python::make_constructor(&make_session
                 , default_call_policies()
                 , (arg("settings")
-                , arg("flags")=lt::session::start_default_features
-                    | lt::session::add_default_plugins))
+                , arg("flags")=lt::session::add_default_plugins))
         )
 #if TORRENT_ABI_VERSION == 1
         .def(
@@ -977,8 +980,8 @@ void bind_session()
 #endif // TORRENT_DISABLE_DHT
         .def("add_torrent", &add_torrent)
         .def("async_add_torrent", &async_add_torrent)
-        .def("async_add_torrent", &lt::session::async_add_torrent)
-        .def("add_torrent", allow_threads((lt::torrent_handle (session_handle::*)(add_torrent_params const&))&lt::session::add_torrent))
+        .def("async_add_torrent", static_cast<void (session_handle::*)(lt::add_torrent_params const&)>(&lt::session::async_add_torrent))
+        .def("add_torrent", allow_threads(static_cast<lt::torrent_handle (session_handle::*)(add_torrent_params const&)>(&lt::session::add_torrent)))
 #ifndef BOOST_NO_EXCEPTIONS
 #if TORRENT_ABI_VERSION == 1
         .def(
