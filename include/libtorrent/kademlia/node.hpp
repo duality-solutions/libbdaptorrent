@@ -53,6 +53,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <libtorrent/string_view.hpp>
 #include <libtorrent/aux_/listen_socket_handle.hpp>
 
+static constexpr unsigned int MAX_DHT_MUTABLE_DATA_LENGTH = 5120;
+
 namespace libtorrent {
 	struct counters;
 }
