@@ -67,6 +67,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #define PROGRESS_NOTIFICATION
 #endif
 
+static constexpr unsigned int MAX_DHT_MUTABLE_DATA_LENGTH = 5120;
 
 namespace libtorrent {
 

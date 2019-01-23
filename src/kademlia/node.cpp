@@ -997,7 +997,7 @@ void node::incoming_request(msg const& m, entry& e)
 
 		// pointer and length to the whole entry
 		span<char const> buf = msg_keys[1].data_section();
-		if (buf.size() > 1000 || buf.empty())
+		if (buf.size() > MAX_DHT_MUTABLE_DATA_LENGTH || buf.empty())
 		{
 			m_counters.inc_stats_counter(counters::dht_invalid_put);
 			incoming_error(e, "message too big", 205);
