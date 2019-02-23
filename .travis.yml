@@ -4,7 +4,7 @@ dist: xenial
 matrix:
   fast_finish: true
   include:
-    - if: repo = arvidn/libtorrent
+    - if: repo = duality-solutions/libbdaptorrent
       env: variant=release sonar_scan=1 toolset=gcc
     - env: variant=debug toolset=gcc lint=1 pylint=1 clang_tidy=1
       addons:
@@ -33,8 +33,6 @@ git:
 branches:
   only:
     - master
-    - RC_1_2
-    - RC_1_1
 
 cache:
   directories:
