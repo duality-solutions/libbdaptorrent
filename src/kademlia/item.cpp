@@ -33,7 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <libtorrent/hasher.hpp>
 #include <libtorrent/kademlia/item.hpp>
 #include <libtorrent/bencode.hpp>
-#include <libtorrent/alert_types.hpp> 
+#include <libtorrent/alert_types.hpp>
 #include <libtorrent/kademlia/ed25519.hpp>
 #include <libtorrent/aux_/numeric_cast.hpp>
 
@@ -165,7 +165,7 @@ void item::assign(entry v, span<char const> salt
 {
 	std::array<char, MAX_DHT_MUTABLE_DATA_LENGTH> buffer;
 	int const bsize = bencode(buffer.begin(), v);
-	TORRENT_ASSERT(bsize <= MAX_DHT_MUTABLE_DATA_LENGTH);
+	TORRENT_ASSERT(bsize <= static_cast<int>(MAX_DHT_MUTABLE_DATA_LENGTH));
 	m_sig = sign_mutable_item(span<char const>(buffer).first(bsize)
 		, salt, seq, pk, sk);
 	m_salt.assign(salt.data(), static_cast<std::size_t>(salt.size()));
