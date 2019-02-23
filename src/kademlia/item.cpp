@@ -102,7 +102,7 @@ bool verify_mutable_item(
 	, public_key const& pk
 	, signature const& sig)
 {
-	char str[1200];
+	char str[MAX_DHT_MUTABLE_DATA_LENGTH + 200];
 	int len = canonical_string(v, seq, salt, str);
 
 	return ed25519_verify(sig, {str, len}, pk);
@@ -121,7 +121,7 @@ signature sign_mutable_item(
 	, public_key const& pk
 	, secret_key const& sk)
 {
-	char str[1200];
+	char str[MAX_DHT_MUTABLE_DATA_LENGTH + 200];
 	int const len = canonical_string(v, seq, salt, str);
 
 	return ed25519_sign({str, len}, pk, sk);
