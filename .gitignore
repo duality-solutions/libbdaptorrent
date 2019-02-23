@@ -58,6 +58,7 @@ docs/*-ref.rst
 
 # Compile and link flag files
 bindings/python/*flags
+bindings/python/compile_cmd
 
 # Logs
 libtorrent_logs*
