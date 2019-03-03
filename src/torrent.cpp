@@ -279,7 +279,7 @@ bool is_downloading_state(int const st)
 		for (auto const& e : p.http_seeds)
 			ws.emplace_back(e, web_seed_entry::http_seed);
 
-		aux::random_shuffle(ws.begin(), ws.end());
+		aux::random_shuffle(ws);
 		for (auto& w : ws) m_web_seeds.emplace_back(std::move(w));
 
 		// --- TRACKERS ---
@@ -486,7 +486,7 @@ bool is_downloading_state(int const st)
 		// add the web seeds from the .torrent file
 		std::vector<web_seed_entry> const& web_seeds = m_torrent_file->web_seeds();
 		std::vector<web_seed_t> ws(web_seeds.begin(), web_seeds.end());
-		aux::random_shuffle(ws.begin(), ws.end());
+		aux::random_shuffle(ws);
 		for (auto& w : ws) m_web_seeds.push_back(std::move(w));
 
 #if !defined TORRENT_DISABLE_ENCRYPTION
@@ -2075,8 +2075,11 @@ bool is_downloading_state(int const st)
 		{
 			if (status != status_t::no_error || error)
 			{
-				debug_log("fastresume data rejected: ret: %d (%d) %s"
-					, static_cast<int>(status), error.ec.value(), error.ec.message().c_str());
+				debug_log("fastresume data rejected: ret: %d (%d) op: %s file: %d %s"
+					, static_cast<int>(status), error.ec.value()
+					, operation_name(error.operation)
+					, static_cast<int>(error.file())
+					, error.ec.message().c_str());
 			}
 			else
 			{
@@ -2085,7 +2088,8 @@ bool is_downloading_state(int const st)
 		}
 #endif
 
-		bool should_start_full_check = status != status_t::no_error;
+		bool should_start_full_check = (status != status_t::no_error)
+			&& !m_seed_mode;
 
 		// if we got a partial pieces bitfield, it means we were in the middle of
 		// checking this torrent. pick it up where we left off
@@ -3819,7 +3823,15 @@ bool is_downloading_state(int const st)
 
 		// update m_file_progress (if we have one)
 		m_file_progress.update(m_torrent_file->files(), index
-			, &m_ses.alerts(), get_handle());
+			, [this](file_index_t const file_index)
+			{
+				if (m_ses.alerts().should_post<file_completed_alert>())
+				{
+					// this file just completed, post alert
+					m_ses.alerts().emplace_alert<file_completed_alert>(
+						get_handle(), file_index);
+				}
+			});
 
 		remove_time_critical_piece(index, true);
 
@@ -6257,7 +6269,7 @@ bool is_downloading_state(int const st)
 		// if we didn't save 100 peers, fill in with second choice peers
 		if (int(ret.peers.size()) < 100)
 		{
-			aux::random_shuffle(deferred_peers.begin(), deferred_peers.end());
+			aux::random_shuffle(deferred_peers);
 			for (auto const p : deferred_peers)
 			{
 				ret.peers.push_back(p->ip());
@@ -9202,7 +9214,7 @@ bool is_downloading_state(int const st)
 			std::copy_if(m_connections.begin(), m_connections.end(), std::back_inserter(seeds)
 				, [](peer_connection const* p) { return p->is_seed(); });
 
-			aux::random_shuffle(seeds.begin(), seeds.end());
+			aux::random_shuffle(seeds);
 			TORRENT_ASSERT(to_disconnect <= seeds.end_index());
 			for (auto const& p : span<peer_connection*>(seeds).first(to_disconnect))
 				p->disconnect(errors::upload_upload_connection, operation_t::bittorrent);

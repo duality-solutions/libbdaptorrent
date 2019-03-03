@@ -34,7 +34,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <map>
 #include <tuple>
 #include <functional>
-#include <random>
 
 #include "libtorrent/session.hpp"
 #include "libtorrent/hasher.hpp"
@@ -51,7 +50,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/hex.hpp" // to_hex
 #include "libtorrent/aux_/vector.hpp"
 #include "libtorrent/aux_/path.hpp"
-#include "libtorrent/random.hpp"
 
 #include "test.hpp"
 #include "test_utils.hpp"
@@ -68,8 +66,18 @@ using namespace lt;
 #include <conio.h>
 #endif
 
-std::shared_ptr<torrent_info> generate_torrent()
+std::shared_ptr<torrent_info> generate_torrent(bool const with_files)
 {
+	if (with_files)
+	{
+		error_code ec;
+		create_directories("test_resume", ec);
+		std::vector<char> a(128 * 1024 * 8);
+		std::vector<char> b(128 * 1024);
+		std::ofstream("test_resume/tmp1").write(a.data(), std::streamsize(a.size()));
+		std::ofstream("test_resume/tmp2").write(b.data(), std::streamsize(b.size()));
+		std::ofstream("test_resume/tmp3").write(b.data(), std::streamsize(b.size()));
+	}
 	file_storage fs;
 	fs.add_file("test_resume/tmp1", 128 * 1024 * 8);
 	fs.add_file("test_resume/tmp2", 128 * 1024);
@@ -600,9 +608,6 @@ std::shared_ptr<T> clone_ptr(std::shared_ptr<T> const& ptr)
 {
 	return std::make_shared<T>(*ptr);
 }
-
-std::uint8_t random_byte()
-{ return static_cast<std::uint8_t>(lt::random(0xff)); }
 
 std::vector<char> generate_piece(piece_index_t const idx, int const piece_size)
 {

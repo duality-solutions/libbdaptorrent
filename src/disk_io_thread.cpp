@@ -76,10 +76,10 @@ namespace libtorrent {
 #if TORRENT_USE_ASSERTS
 
 #define TORRENT_PIECE_ASSERT(cond, piece) \
-	do { if (!(cond)) { assert_print_piece(piece); assert_fail(#cond, __LINE__, __FILE__, TORRENT_FUNCTION, nullptr); } } TORRENT_WHILE_0
+	do { if (!(cond)) { assert_print_piece(piece); assert_fail(#cond, __LINE__, __FILE__, __func__, nullptr); } } TORRENT_WHILE_0
 
 #define TORRENT_PIECE_ASSERT_FAIL(piece) \
-	do { assert_print_piece(piece); assert_fail("<unconditional>", __LINE__, __FILE__, TORRENT_FUNCTION, nullptr); } TORRENT_WHILE_0
+	do { assert_print_piece(piece); assert_fail("<unconditional>", __LINE__, __FILE__, __func__, nullptr); } TORRENT_WHILE_0
 
 #else
 #define TORRENT_PIECE_ASSERT(cond, piece) do {} TORRENT_WHILE_0
@@ -2132,7 +2132,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 			iov = iov.first(std::min(default_block_size, piece_size - offset));
 			ret = j->storage->readv(iov, j->piece, offset, file_flags, j->error);
-			if (ret < 0) break;
+			if (ret <= 0) break;
 			iov = iov.first(ret);
 
 			if (!j->error.ec)
@@ -2530,14 +2530,15 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 		TORRENT_ASSERT(j->storage->files().piece_length() > 0);
 
+		bool const verify_success = j->storage->verify_resume_data(*rd
+			, links ? *links : aux::vector<std::string, file_index_t>(), j->error);
+
 		// if we don't have any resume data, return
 		// or if error is set and return value is 'no_error' or 'need_full_check'
 		// the error message indicates that the fast resume data was rejected
 		// if 'fatal_disk_error' is returned, the error message indicates what
 		// when wrong in the disk access
-		if ((rd->have_pieces.empty()
-			|| !j->storage->verify_resume_data(*rd
-				, links ? *links : aux::vector<std::string, file_index_t>(), j->error))
+		if ((rd->have_pieces.empty() || !verify_success)
 			&& !m_settings.get_bool(settings_pack::no_recheck_incomplete_resume))
 		{
 			// j->error may have been set at this point, by verify_resume_data()

@@ -234,6 +234,22 @@ POSSIBILITY OF SUCH DAMAGE.
 #define TORRENT_USE_PREADV 1
 #define TORRENT_USE_PWRITEV 1
 
+# if !defined TORRENT_USE_LIBCRYPTO && !defined TORRENT_USE_LIBGCRYPT
+// unless some other crypto library has been specified, default to the native
+// windows CryptoAPI
+#define TORRENT_USE_CRYPTOAPI 1
+
+#ifdef NTDDI_VERSION
+# if (NTDDI_VERSION > NTDDI_WINXPSP2)
+#  define TORRENT_USE_CRYPTOAPI_SHA_512 1
+# endif
+#else // NTDDI_VERSION not defined so use simple _WIN32_WINNT check
+# if _WIN32_WINNT >= 0x0600
+#  define TORRENT_USE_CRYPTOAPI_SHA_512 1
+# endif
+#endif
+
+#endif
 // ==== WINDOWS ===
 #elif defined _WIN32
 #define TORRENT_WINDOWS
@@ -329,16 +345,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #define TORRENT_UNUSED(x) (void)(x)
-
-// at the highest warning level, clang actually warns about functions
-// that could be marked noreturn.
-#if defined __clang__ || defined __GNUC__
-#define TORRENT_NO_RETURN __attribute((noreturn))
-#elif _MSC_VER
-#define TORRENT_NO_RETURN __declspec(noreturn)
-#else
-#define TORRENT_NO_RETURN
-#endif
 
 #if defined __GNUC__ || defined __clang__
 #define TORRENT_FORMAT(fmt, ellipsis) __attribute__((__format__(__printf__, fmt, ellipsis)))
@@ -498,13 +504,6 @@ constexpr std::size_t TORRENT_WRITE_HANDLER_MAX_SIZE = 400;
 constexpr std::size_t TORRENT_WRITE_HANDLER_MAX_SIZE = 342;
 # endif
 #endif
-
-#if defined __GNUC__
-#define TORRENT_FUNCTION __PRETTY_FUNCTION__
-#else
-#define TORRENT_FUNCTION __FUNCTION__
-#endif
-
 
 // debug builds have asserts enabled by default, release
 // builds have asserts if they are explicitly enabled by
