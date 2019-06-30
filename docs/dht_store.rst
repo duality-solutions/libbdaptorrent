@@ -89,13 +89,13 @@ Request:
 .. parsed-literal::
 
 	{
-		"a":
+		"b":
 		{
 			"id": *<20 byte id of sending node (string)>*,
 			"v": *<any bencoded type, whose encoded size <= 1000>*
 		},
 		"t": *<transaction-id (string)>*,
-		"y": "q",
+		"o": "q",
 		"q": "put"
 	}
 
@@ -106,7 +106,7 @@ Response:
 	{
 		"r": { "id": *<20 byte id of sending node (string)>* },
 		"t": *<transaction-id (string)>*,
-		"y": "r",
+		"o": "r",
 	}
 
 get message
@@ -117,13 +117,13 @@ Request:
 .. parsed-literal::
 
 	{
-		"a":
+		"b":
 		{
 			"id": *<20 byte id of sending node (string)>*,
 			"target": *<SHA-1 hash of item (string)>*,
 		},
 		"t": *<transaction-id (string)>*,
-		"y": "q",
+		"o": "q",
 		"q": "get"
 	}
 
@@ -141,7 +141,7 @@ Response:
 			"nodes6": *<IPv6 nodes close to 'target'>*
 		},
 		"t": *<transaction-id>*,
-		"y": "r",
+		"o": "r",
 	}
 
 
@@ -186,7 +186,7 @@ Request:
 .. parsed-literal::
 
 	{
-		"a":
+		"b":
 		{
 			"cas": *<optional expected seq-nr (int)>*,
 			"id": *<20 byte id of sending node (string)>*,
@@ -198,7 +198,7 @@ Request:
 			"v": *<any bencoded type, whose encoded size < 1000>*
 		},
 		"t": *<transaction-id (string)>*,
-		"y": "q",
+		"o": "q",
 		"q": "put"
 	}
 
@@ -266,14 +266,14 @@ Response:
 	{
 		"r": { "id": *<20 byte id of sending node (string)>* },
 		"t": *<transaction-id (string)>*,
-		"y": "r",
+		"o": "r",
 	}
 
 errors
 ......
 
 If the store fails for any reason an error message is returned instead of the
-message template above, i.e. one where "y" is "e" and "e" is a tuple of
+message template above, i.e. one where "o" is "e" and "e" is a tuple of
 [error-code, message]). Failures include ``cas`` mismatches and the sequence
 number is outdated.
 
@@ -286,7 +286,7 @@ The error message (as specified by BEP5_) looks like this:
 	{
 		"e": [ *<error-code (integer)>*, *<error-string (string)>* ],
 		"t": *<transaction-id (string)>*,
-		"y": "e",
+		"o": "e",
 	}
 
 In addition to the error codes defined in BEP5_, this specification defines 
@@ -323,13 +323,13 @@ Request:
 .. parsed-literal::
 
 	{
-		"a":
+		"b":
 		{
 			"id": *<20 byte id of sending node (string)>*,
 			"target:" *<20 byte SHA-1 hash of public key and salt (string)>*
 		},
 		"t": *<transaction-id (string)>*,
-		"y": "q",
+		"o": "q",
 		"q": "get"
 	}
 
@@ -350,7 +350,7 @@ Response:
 			"v": *<any bencoded type, whose encoded size <= 1000>*
 		},
 		"t": *<transaction-id (string)>*,
-		"y": "r",
+		"o": "r",
 	}
 
 signature verification

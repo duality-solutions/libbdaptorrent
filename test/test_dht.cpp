@@ -277,9 +277,9 @@ void send_dht_request(node& node, char const* msg, udp::endpoint const& ep
 	entry e;
 	e["q"] = msg;
 	e["t"] = t;
-	e["y"] = "q";
-	e["a"] = args.a;
-	e["a"].dict().insert(std::make_pair("id", generate_next().to_string()));
+	e["o"] = "q";
+	e["b"] = args.a;
+	e["b"].dict().insert(std::make_pair("id", generate_next().to_string()));
 	char msg_buf[1500];
 	int size = bencode(msg_buf, e);
 
@@ -320,7 +320,7 @@ void send_dht_response(node& node, bdecode_node const& request, udp::endpoint co
 	, msg_args const& args = msg_args())
 {
 	entry e;
-	e["y"] = "r";
+	e["o"] = "r";
 	e["t"] = request.dict_find_string_value("t").to_string();
 //	e["ip"] = endpoint_to_bytes(ep);
 	e["r"] = args.a;
@@ -345,8 +345,8 @@ struct announce_item
 	{
 		num_peers = (rand() % 5) + 2;
 		ent["next"] = next.to_string();
-		ent["A"] = "a";
 		ent["B"] = "b";
+		ent["C"] = "c";
 		ent["num_peers"] = num_peers;
 
 		char buf[512];
@@ -379,7 +379,7 @@ void announce_immutable_items(node& node, udp::endpoint const* eps
 					{ "id", bdecode_node::string_t, 20, 0},
 					{ "token", bdecode_node::string_t, 0, 0},
 					{ "ip", bdecode_node::string_t, 0, key_desc_t::optional | key_desc_t::last_child},
-				{ "y", bdecode_node::string_t, 1, 0},
+				{ "o", bdecode_node::string_t, 1, 0},
 			};
 
 			bdecode_node parsed[5];
@@ -416,7 +416,7 @@ void announce_immutable_items(node& node, udp::endpoint const* eps
 
 			key_desc_t const desc2[] =
 			{
-				{ "y", bdecode_node::string_t, 1, 0 }
+				{ "o", bdecode_node::string_t, 1, 0 }
 			};
 
 			bdecode_node parsed2[1];
@@ -449,7 +449,7 @@ void announce_immutable_items(node& node, udp::endpoint const* eps
 			{ "r", bdecode_node::dict_t, 0, key_desc_t::parse_children },
 				{ "v", bdecode_node::dict_t, 0, 0},
 				{ "id", bdecode_node::string_t, 20, key_desc_t::last_child},
-			{ "y", bdecode_node::string_t, 1, 0},
+			{ "o", bdecode_node::string_t, 1, 0},
 		};
 
 		bdecode_node parsed[4];
@@ -597,31 +597,31 @@ struct dht_test_setup
 };
 
 dht::key_desc_t const err_desc[] = {
-	{"y", bdecode_node::string_t, 1, 0},
+	{"o", bdecode_node::string_t, 1, 0},
 	{"e", bdecode_node::list_t, 2, 0}
 };
 
 dht::key_desc_t const peer1_desc[] = {
-	{"y", bdecode_node::string_t, 1, 0},
+	{"o", bdecode_node::string_t, 1, 0},
 	{"r", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 		{"token", bdecode_node::string_t, 0, 0},
 		{"id", bdecode_node::string_t, 20, key_desc_t::last_child},
 };
 
 dht::key_desc_t const get_item_desc[] = {
-	{"y", bdecode_node::string_t, 1, 0},
+	{"o", bdecode_node::string_t, 1, 0},
 	{"t", bdecode_node::string_t, 2, 0},
 	{"q", bdecode_node::string_t, 3, 0},
-	{"a", bdecode_node::dict_t, 0, key_desc_t::parse_children},
+	{"b", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 		{"id", bdecode_node::string_t, 20, 0},
 		{"target", bdecode_node::string_t, 20, key_desc_t::last_child},
 };
 
 dht::key_desc_t const put_mutable_item_desc[] = {
-	{"y", bdecode_node::string_t, 1, 0},
+	{"o", bdecode_node::string_t, 1, 0},
 	{"t", bdecode_node::string_t, 2, 0},
 	{"q", bdecode_node::string_t, 3, 0},
-	{"a", bdecode_node::dict_t, 0, key_desc_t::parse_children},
+	{"b", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 		{"id", bdecode_node::string_t, 20, 0},
 		{"cas", bdecode_node::string_t, 20, key_desc_t::optional},
 		{"k", bdecode_node::string_t, public_key::len, 0},
@@ -632,10 +632,10 @@ dht::key_desc_t const put_mutable_item_desc[] = {
 };
 
 dht::key_desc_t const sample_infohashes_desc[] = {
-	{"y", bdecode_node::string_t, 1, 0},
+	{"o", bdecode_node::string_t, 1, 0},
 	{"t", bdecode_node::string_t, 2, 0},
 	{"q", bdecode_node::string_t, 17, 0},
-	{"a", bdecode_node::dict_t, 0, key_desc_t::parse_children},
+	{"b", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 		{"id", bdecode_node::string_t, 20, 0},
 		{"target", bdecode_node::string_t, 20, key_desc_t::last_child},
 };
@@ -824,7 +824,7 @@ TORRENT_TEST(ping)
 	send_dht_request(t.dht_node, "ping", t.source, &response);
 
 	dht::key_desc_t const pong_desc[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"t", bdecode_node::string_t, 2, 0},
 		{"r", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"id", bdecode_node::string_t, 20, key_desc_t::last_child},
@@ -923,7 +923,7 @@ TORRENT_TEST(get_peers_announce)
 			.port(8080));
 
 	dht::key_desc_t const ann_desc[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"r", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"id", bdecode_node::string_t, 20, key_desc_t::last_child},
 	};
@@ -993,7 +993,7 @@ void test_scrape(address(&rand_addr)())
 		, msg_args().info_hash("01010101010101010101").scrape(true));
 
 	dht::key_desc_t const peer2_desc[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"r", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"BFpe", bdecode_node::string_t, 256, 0},
 			{"BFsd", bdecode_node::string_t, 256, 0},
@@ -1113,7 +1113,7 @@ void test_id_enforcement(address(&rand_addr)())
 			.nid(nid));
 
 	dht::key_desc_t const nodes_desc[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"r", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"id", bdecode_node::string_t, 20, key_desc_t::last_child},
 	};
@@ -1287,7 +1287,7 @@ void test_put(address(&rand_addr)())
 
 	key_desc_t const desc2[] =
 	{
-		{ "y", bdecode_node::string_t, 1, 0 }
+		{ "o", bdecode_node::string_t, 1, 0 }
 	};
 
 	bdecode_node desc2_keys[1];
@@ -1295,7 +1295,7 @@ void test_put(address(&rand_addr)())
 	key_desc_t const desc_error[] =
 	{
 		{ "e", bdecode_node::list_t, 2, 0 },
-		{ "y", bdecode_node::string_t, 1, 0},
+		{ "o", bdecode_node::string_t, 1, 0},
 	};
 
 	bdecode_node desc_error_keys[2];
@@ -1343,7 +1343,7 @@ void test_put(address(&rand_addr)())
 			{ "id", bdecode_node::string_t, 20, 0},
 			{ "token", bdecode_node::string_t, 0, 0},
 			{ "ip", bdecode_node::string_t, 0, key_desc_t::optional | key_desc_t::last_child},
-			{ "y", bdecode_node::string_t, 1, 0},
+			{ "o", bdecode_node::string_t, 1, 0},
 		};
 
 		bdecode_node desc_keys[5];
@@ -1407,7 +1407,7 @@ void test_put(address(&rand_addr)())
 				{ "seq", bdecode_node::int_t, 0, 0},
 				{ "sig", bdecode_node::string_t, 0, 0},
 				{ "ip", bdecode_node::string_t, 0, key_desc_t::optional | key_desc_t::last_child},
-			{ "y", bdecode_node::string_t, 1, 0},
+			{ "o", bdecode_node::string_t, 1, 0},
 		};
 
 		bdecode_node desc3_keys[7];
@@ -1806,10 +1806,10 @@ void test_bootstrap(address(&rand_addr)())
 	bool ret;
 
 	dht::key_desc_t const find_node_desc[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"t", bdecode_node::string_t, 2, 0},
 		{"q", bdecode_node::string_t, 9, 0},
-		{"a", bdecode_node::dict_t, 0, key_desc_t::parse_children},
+		{"b", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"id", bdecode_node::string_t, 20, 0},
 			{"target", bdecode_node::string_t, 20, key_desc_t::optional},
 			{"info_hash", bdecode_node::string_t, 20, key_desc_t::optional | key_desc_t::last_child},
@@ -1909,10 +1909,10 @@ void test_bootstrap_want(address(&rand_addr)())
 	bool ret;
 
 	dht::key_desc_t const find_node_desc[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"t", bdecode_node::string_t, 2, 0},
 		{"q", bdecode_node::string_t, 9, 0},
-		{"a", bdecode_node::dict_t, 0, key_desc_t::parse_children},
+		{"b", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"id", bdecode_node::string_t, 20, 0},
 			{"target", bdecode_node::string_t, 20, key_desc_t::optional},
 			{"info_hash", bdecode_node::string_t, 20, key_desc_t::optional},
@@ -1981,10 +1981,10 @@ void test_short_nodes(address(&rand_addr)())
 	bool ret;
 
 	dht::key_desc_t const find_node_desc[] = {
-		{ "y", bdecode_node::string_t, 1, 0 },
+		{ "o", bdecode_node::string_t, 1, 0 },
 		{ "t", bdecode_node::string_t, 2, 0 },
 		{ "q", bdecode_node::string_t, 9, 0 },
-		{ "a", bdecode_node::dict_t, 0, key_desc_t::parse_children },
+		{ "b", bdecode_node::dict_t, 0, key_desc_t::parse_children },
 		{ "id", bdecode_node::string_t, 20, 0 },
 		{ "target", bdecode_node::string_t, 20, key_desc_t::optional },
 		{ "info_hash", bdecode_node::string_t, 20, key_desc_t::optional | key_desc_t::last_child },
@@ -2068,10 +2068,10 @@ void test_get_peers(address(&rand_addr)())
 	bool ret;
 
 	dht::key_desc_t const get_peers_desc[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"t", bdecode_node::string_t, 2, 0},
 		{"q", bdecode_node::string_t, 9, 0},
-		{"a", bdecode_node::dict_t, 0, key_desc_t::parse_children},
+		{"b", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"id", bdecode_node::string_t, 20, 0},
 			{"info_hash", bdecode_node::string_t, 20, key_desc_t::last_child},
 	};
@@ -2362,10 +2362,10 @@ TORRENT_TEST(immutable_put)
 	char buffer[1200];
 
 	dht::key_desc_t const put_immutable_item_desc[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"t", bdecode_node::string_t, 2, 0},
 		{"q", bdecode_node::string_t, 3, 0},
-		{"a", bdecode_node::dict_t, 0, key_desc_t::parse_children},
+		{"b", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"id", bdecode_node::string_t, 20, 0},
 			{"token", bdecode_node::string_t, 2, 0},
 			{"v", bdecode_node::none_t, 0, key_desc_t::last_child},
@@ -2707,7 +2707,7 @@ TORRENT_TEST(dht_dual_stack)
 			.want("n6"));
 
 	dht::key_desc_t const nodes6_desc[] = {
-		{ "y", bdecode_node::string_t, 1, 0 },
+		{ "o", bdecode_node::string_t, 1, 0 },
 		{ "r", bdecode_node::dict_t, 0, key_desc_t::parse_children },
 		{ "id", bdecode_node::string_t, 20, 0 },
 		{ "nodes6", bdecode_node::string_t, 38, key_desc_t::last_child }
@@ -2739,7 +2739,7 @@ TORRENT_TEST(dht_dual_stack)
 		, msg_args().info_hash("0101010101010101010101010101010101010101").want("n4"));
 
 	dht::key_desc_t const nodes_desc[] = {
-		{ "y", bdecode_node::string_t, 1, 0 },
+		{ "o", bdecode_node::string_t, 1, 0 },
 		{ "r", bdecode_node::dict_t, 0, key_desc_t::parse_children },
 		{ "id", bdecode_node::string_t, 20, 0 },
 		{ "nodes", bdecode_node::string_t, 26, key_desc_t::last_child }
@@ -2771,7 +2771,7 @@ TORRENT_TEST(dht_dual_stack)
 			.want("n6"));
 
 	dht::key_desc_t const nodes46_desc[] = {
-		{ "y", bdecode_node::string_t, 1, 0 },
+		{ "o", bdecode_node::string_t, 1, 0 },
 		{ "r", bdecode_node::dict_t, 0, key_desc_t::parse_children },
 		{ "id", bdecode_node::string_t, 20, 0 },
 		{ "nodes", bdecode_node::string_t, 26, 0 },
@@ -2812,8 +2812,8 @@ TORRENT_TEST(multi_home)
 	entry e;
 	e["q"] = "ping";
 	e["t"] = "10";
-	e["y"] = "q";
-	e["a"].dict().insert(std::make_pair("id", generate_next().to_string()));
+	e["o"] = "q";
+	e["b"].dict().insert(std::make_pair("id", generate_next().to_string()));
 	char msg_buf[1500];
 	int size = bencode(msg_buf, e);
 
@@ -3189,7 +3189,7 @@ TORRENT_TEST(node_set_id)
 	send_dht_request(t.dht_node, "ping", t.source, &response);
 
 	dht::key_desc_t const pong_desc[] = {
-		{ "y", bdecode_node::string_t, 1, 0 },
+		{ "o", bdecode_node::string_t, 1, 0 },
 		{ "t", bdecode_node::string_t, 2, 0 },
 		{ "r", bdecode_node::dict_t, 0, key_desc_t::parse_children },
 		{ "id", bdecode_node::string_t, 20, key_desc_t::last_child },
@@ -3245,11 +3245,11 @@ TORRENT_TEST(read_only_node)
 	TEST_EQUAL(g_sent_packets.front().first, initial_node);
 
 	dht::key_desc_t const get_item_desc_ro[] = {
-		{"y", bdecode_node::string_t, 1, 0},
+		{"o", bdecode_node::string_t, 1, 0},
 		{"t", bdecode_node::string_t, 2, 0},
 		{"q", bdecode_node::string_t, 3, 0},
 		{"ro", bdecode_node::int_t, 4, key_desc_t::optional},
-		{"a", bdecode_node::dict_t, 0, key_desc_t::parse_children},
+		{"b", bdecode_node::dict_t, 0, key_desc_t::parse_children},
 			{"id", bdecode_node::string_t, 20, 0},
 			{"target", bdecode_node::string_t, 20, key_desc_t::last_child},
 	};
@@ -3316,7 +3316,7 @@ TORRENT_TEST(invalid_error_msg)
 	udp::endpoint source(addr("10.0.0.1"), 20);
 
 	entry e;
-	e["y"] = "e";
+	e["o"] = "e";
 	e["e"].string() = "Malformed Error";
 	char msg_buf[1500];
 	int size = bencode(msg_buf, e);
@@ -3409,7 +3409,7 @@ TORRENT_TEST(rpc_invalid_error_msg)
 	// we need this to create an entry for this transaction ID, otherwise the
 	// incoming message will just be dropped
 	entry req;
-	req["y"] = "q";
+	req["o"] = "q";
 	req["q"] = "bogus_query";
 	req["t"] = "\0\0\0\0";
 
@@ -3424,7 +3424,7 @@ TORRENT_TEST(rpc_invalid_error_msg)
 
 	// here's the incoming (malformed) error message
 	entry err;
-	err["y"] = "e";
+	err["o"] = "e";
 	err["e"].string() = "Malformed Error";
 	err["t"] = g_sent_packets.begin()->second["t"].string();
 	char msg_buf[1500];

@@ -252,8 +252,8 @@ bool rpc_manager::incoming(msg const& m, node_id* id)
 	if (m_destructing) return false;
 
 	// we only deal with replies and errors, not queries
-	TORRENT_ASSERT(m.message.dict_find_string_value("y") == "r"
-		|| m.message.dict_find_string_value("y") == "e");
+	TORRENT_ASSERT(m.message.dict_find_string_value("o") == "r"
+		|| m.message.dict_find_string_value("o") == "e");
 
 	// if we don't have the transaction id in our
 	// request list, ignore the packet
@@ -305,7 +305,7 @@ bool rpc_manager::incoming(msg const& m, node_id* id)
 	}
 #endif
 
-	if (m.message.dict_find_string_value("y") == "e")
+	if (m.message.dict_find_string_value("o") == "e")
 	{
 		// It's an error.
 #ifndef TORRENT_DISABLE_LOGGING
@@ -458,9 +458,9 @@ bool rpc_manager::invoke(entry& e, udp::endpoint const& target_addr
 
 	if (m_destructing) return false;
 
-	e["y"] = "q";
-	entry& a = e["a"];
-	add_our_id(a);
+	e["o"] = "q";
+	entry& broadcast = e["b"];
+	add_our_id(broadcast);
 
 	std::string transaction_id;
 	transaction_id.resize(2);
@@ -476,7 +476,7 @@ bool rpc_manager::invoke(entry& e, udp::endpoint const& target_addr
 	node& n = o->algorithm()->get_node();
 	if (!n.native_address(o->target_addr()))
 	{
-		a["want"].list().emplace_back(n.protocol_family_name());
+		broadcast["want"].list().emplace_back(n.protocol_family_name());
 	}
 
 	o->set_target(target_addr);

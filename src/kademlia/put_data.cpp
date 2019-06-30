@@ -90,19 +90,19 @@ bool put_data::invoke(observer_ptr o)
 	auto* po = static_cast<put_data_observer*>(o.get());
 
 	entry e;
-	e["y"] = "q";
+	e["o"] = "q";
 	e["q"] = "put";
-	entry& a = e["a"];
-	a["v"] = m_data.value();
-	a["token"] = po->m_token;
+	entry& broadcast = e["b"];
+	broadcast["v"] = m_data.value();
+	broadcast["token"] = po->m_token;
 	if (m_data.is_mutable())
 	{
-		a["k"] = m_data.pk().bytes;
-		a["seq"] = m_data.seq().value;
-		a["sig"] = m_data.sig().bytes;
+		broadcast["k"] = m_data.pk().bytes;
+		broadcast["seq"] = m_data.seq().value;
+		broadcast["sig"] = m_data.sig().bytes;
 		if (!m_data.salt().empty())
 		{
-			a["salt"] = m_data.salt();
+			broadcast["salt"] = m_data.salt();
 		}
 	}
 
