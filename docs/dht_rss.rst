@@ -150,7 +150,7 @@ a list head, the ``n`` (name) field MUST be specified. When requesting a list it
 .. parsed-literal::
 
 	{
-	   "a":
+	   "b":
 	   {
 	      "id": *<20 byte ID of sending node>*,
 	      "key": *<64 byte public curve25519 key for this list>*,
@@ -159,7 +159,7 @@ a list head, the ``n`` (name) field MUST be specified. When requesting a list it
 	   },
 	   "q": "get_item",
 	   "t": *<transaction-id>*,
-	   "y": "q",
+	   "o": "q",
 	}
 
 When requesting a list-head the ``target`` MUST always be SHA-1(*feed_name* + *public_key*).
@@ -192,7 +192,7 @@ This is the format of a response of a list head:
 	      "nodes6": *<n * compact IPv6-port pair>*
 	   },
 	   "t": *<transaction-id>*,
-	   "y": "r",
+	   "o": "r",
 	}
 
 This is the format of a response of a list item:
@@ -215,7 +215,7 @@ This is the format of a response of a list item:
 	      "nodes6": *<n * compact IPv6-port pair>*
 	   },
 	   "t": *<transaction-id>*,
-	   "y": "r",
+	   "o": "r",
 	}
 
 A client receiving a ``get_item`` response MUST verify the signature in the ``sig``
@@ -233,7 +233,7 @@ The message format for announcing a list head:
 .. parsed-literal::
 
 	{
-	   "a":
+	   "b":
 	   {
 	      "head":
 	      {
@@ -247,7 +247,7 @@ The message format for announcing a list head:
 	      "target": *<target-id as derived from public key and name>*,
 	      "token": *<write-token as obtained by previous request>*
 	   },
-	   "y": "q",
+	   "o": "q",
 	   "q": "announce_item",
 	   "t": *<transaction-id>*
 	}
@@ -257,7 +257,7 @@ The message format for announcing a list item:
 .. parsed-literal::
 
 	{
-	   "a":
+	   "b":
 	   {
 	      "item":
 	      {
@@ -270,7 +270,7 @@ The message format for announcing a list item:
 	      "target": *<target-id as derived from item dict>*,
 	      "token": *<write-token as obtained by previous request>*
 	   },
-	   "y": "q",
+	   "o": "q",
 	   "q": "announce_item",
 	   "t": *<transaction-id>*
 	}
@@ -336,7 +336,7 @@ This is an example of an ``announce_item`` message:
 .. parsed-literal::
 
 	{
-	   "a":
+	   "b":
 	   {
 	      "item":
 	      {
@@ -353,7 +353,7 @@ This is an example of an ``announce_item`` message:
 	      "target": "b4692ef0005639e86d7165bf378474107bf3a762"
 	      "token": "23ba"
 	   },
-	   "y": "q",
+	   "o": "q",
 	   "q": "announce_item",
 	"t": "a421"
 	}

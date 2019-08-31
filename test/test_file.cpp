@@ -286,7 +286,7 @@ TORRENT_TEST(split_string)
 	TEST_CHECK(ret == 10);
 	TEST_CHECK(tags[0] == "this"_sv);
 	TEST_CHECK(tags[1] == "is"_sv);
-	TEST_CHECK(tags[2] == "a"_sv);
+	TEST_CHECK(tags[2] == "b"_sv);
 	TEST_CHECK(tags[3] == "test"_sv);
 	TEST_CHECK(tags[4] == "string"_sv);
 	TEST_CHECK(tags[5] == "to"_sv);

@@ -102,7 +102,7 @@ TORRENT_TEST(dht_bootstrap)
 		, n, err, nullptr, 10, 200);
 	TEST_EQUAL(ret, 0);
 
-	lt::bdecode_node a = n.dict_find_dict("a");
+	lt::bdecode_node a = n.dict_find_dict("b");
 	TEST_CHECK(a.dict_find_int_value("bs", -1) == 1);
 }
 
