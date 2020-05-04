@@ -7,9 +7,6 @@ matrix:
     - if: repo = duality-solutions/libbdaptorrent
       env: variant=release sonar_scan=1 toolset=gcc
     - env: variant=release toolset=gcc check_headers=1 python=1
-    - env: variant=test_debug crypto=openssl docs=1 tests=1 examples=1 tools=1 toolset=darwin
-      os: osx
-      osx_image: xcode11.2
     - env: variant=test_debug crypto=openssl python=1 toolset=darwin ios=1
       os: osx
       osx_image: xcode11.2
@@ -18,10 +15,6 @@ matrix:
         apt:
           packages:
           - python3-pip
-    - env: variant=test_debug tests=1 toolset=gcc sanitizer=on fuzzers=1
-    - env: variant=test_debug sim=1 crypto=openssl toolset=gcc sanitizer=on
-    - env: variant=test_release coverage=1 tests=1 toolset=gcc-coverage
-    - env: autotools=1 toolset=gcc install_boost=1
     - env: cmake=1 toolset=gcc install_boost=1
     - env: arch=arm toolset=gcc-arm
       addons:
