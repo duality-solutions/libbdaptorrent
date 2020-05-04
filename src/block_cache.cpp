@@ -154,23 +154,11 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #define DEBUG_CACHE 0
 
-#if __cplusplus >= 201103L || defined __clang__
-
 #if DEBUG_CACHE
 #define DLOG(...) std::fprintf(__VA_ARGS__)
 #else
 #define DLOG(...) do {} while (false)
 #endif
-
-#else // cplusplus
-
-#if DEBUG_CACHE
-#define DLOG fprintf
-#else
-#define DLOG TORRENT_WHILE_0 fprintf
-#endif
-
-#endif // cplusplus
 
 namespace libtorrent {
 
@@ -297,7 +285,7 @@ static_assert(int(job_action_name.size()) == static_cast<int>(job_action_t::num_
 
 
 #define TORRENT_PIECE_ASSERT(cond, piece) \
-	do { if (!(cond)) { assert_print_piece(piece); assert_fail(#cond, __LINE__, __FILE__, TORRENT_FUNCTION, nullptr); } } TORRENT_WHILE_0
+	do { if (!(cond)) { assert_print_piece(piece); assert_fail(#cond, __LINE__, __FILE__, __func__, nullptr); } } TORRENT_WHILE_0
 
 #else
 #define TORRENT_PIECE_ASSERT(cond, piece) do {} TORRENT_WHILE_0
@@ -351,6 +339,23 @@ block_cache::block_cache(io_service& ios
 	, m_send_buffer_blocks(0)
 	, m_pinned_blocks(0)
 {
+}
+
+block_cache::~block_cache()
+{
+	std::vector<char*> bufs;
+	for (auto const& pe : m_pieces)
+	{
+		if (!pe.blocks) continue;
+
+		int const num_blocks = int(pe.blocks_in_piece);
+		for (int i = 0; i < num_blocks; ++i)
+		{
+			if (pe.blocks[i].buf == nullptr) continue;
+			bufs.push_back(pe.blocks[i].buf);
+		}
+	}
+	free_multiple_buffers(bufs);
 }
 
 // returns:
@@ -690,7 +695,7 @@ cached_piece_entry* block_cache::allocate_piece(disk_io_job const* j, std::uint1
 	return p;
 }
 
-cached_piece_entry* block_cache::add_dirty_block(disk_io_job* j)
+cached_piece_entry* block_cache::add_dirty_block(disk_io_job* j, bool const add_hasher)
 {
 #ifdef TORRENT_EXPENSIVE_INVARIANT_CHECKS
 	INVARIANT_CHECK;
@@ -750,7 +755,7 @@ cached_piece_entry* block_cache::add_dirty_block(disk_io_job* j)
 	TORRENT_PIECE_ASSERT(j->piece == pe->piece, pe);
 	pe->jobs.push_back(j);
 
-	if (block == 0 && !pe->hash && pe->hashing_done == false)
+	if (block == 0 && !pe->hash && pe->hashing_done == false && add_hasher)
 		pe->hash.reset(new partial_hash);
 
 	update_cache_state(pe);

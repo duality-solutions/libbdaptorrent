@@ -71,7 +71,6 @@ namespace libtorrent {
 	{
 		std::unique_lock<std::mutex> l(m_mutex);
 		if (m_abort) return;
-		m_max_threads = 0;
 		m_abort = true;
 		m_idle_timer.cancel();
 		stop_threads(int(m_threads.size()));
@@ -174,7 +173,7 @@ namespace libtorrent {
 			// buffer pool won't exist anymore, and crash. This prevents that.
 			m_threads.emplace_back(&pool_thread_interface::thread_fun
 				, &m_thread_iface, std::ref(*this)
-				, io_service::work(m_idle_timer.get_io_service()));
+				, io_service::work(get_io_service(m_idle_timer)));
 		}
 	}
 

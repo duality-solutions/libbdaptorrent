@@ -33,6 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef TORRENT_SPAN_HPP_INCLUDED
 #define TORRENT_SPAN_HPP_INCLUDED
 
+#include <string>
 #include <array>
 #include <type_traits>
 #include "libtorrent/assert.hpp"
@@ -121,6 +122,8 @@ namespace aux {
 		bool empty() const noexcept { return m_len == 0; }
 		T* data() const noexcept { return m_ptr; }
 
+		using const_iterator = T const*;
+		using const_reverse_iterator = std::reverse_iterator<T const*>;
 		using iterator = T*;
 		using reverse_iterator = std::reverse_iterator<T*>;
 

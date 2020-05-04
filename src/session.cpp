@@ -138,10 +138,6 @@ namespace {
 		// socket until the disk write is complete
 		set.set_int(settings_pack::max_queued_disk_bytes, 1);
 
-		// don't keep track of all upnp devices, keep
-		// the device list small
-		set.set_bool(settings_pack::upnp_ignore_nonrouters, true);
-
 		// never keep more than one 16kB block in
 		// the send buffer
 		set.set_int(settings_pack::send_buffer_watermark, 9);
@@ -205,8 +201,8 @@ namespace {
 		// allow lots of peers to try to connect simultaneously
 		set.set_int(settings_pack::listen_queue_size, 3000);
 
-		// unchoke many peers
-		set.set_int(settings_pack::unchoke_slots_limit, 2000);
+		// unchoke all peers
+		set.set_int(settings_pack::unchoke_slots_limit, -1);
 
 		// use 1 GB of cache
 		set.set_int(settings_pack::cache_size, 32768 * 2);
@@ -240,8 +236,7 @@ namespace {
 
 		set.set_int(settings_pack::max_rejects, 10);
 
-		set.set_int(settings_pack::recv_socket_buffer_size, 1024 * 1024);
-		set.set_int(settings_pack::send_socket_buffer_size, 1024 * 1024);
+		set.set_int(settings_pack::send_not_sent_low_watermark, 524288);
 
 		// don't let connections linger for too long
 		set.set_int(settings_pack::request_timeout, 10);
@@ -326,7 +321,7 @@ namespace {
 		if (internal_executor)
 		{
 			// the user did not provide an executor, we have to use our own
-			m_io_service = std::make_shared<io_service>();
+			m_io_service = std::make_shared<io_service>(1);
 			ios = m_io_service.get();
 		}
 
@@ -341,6 +336,9 @@ namespace {
 #endif
 
 #ifndef TORRENT_DISABLE_DHT
+		if (params.settings.has_val(settings_pack::dht_upload_rate_limit))
+			params.dht_settings.upload_rate_limit = params.settings.get_int(settings_pack::dht_upload_rate_limit);
+
 		m_impl->set_dht_settings(std::move(params.dht_settings));
 		m_impl->set_dht_state(std::move(params.dht_state));
 
@@ -386,14 +384,15 @@ namespace {
 
 	session::~session()
 	{
+		if (!m_impl) return;
+
 		aux::dump_call_profile();
-		TORRENT_ASSERT(m_impl);
 
 		// capture the shared_ptr in the dispatched function
 		// to keep the session_impl alive
 		m_impl->call_abort();
 
-		if (m_thread && m_thread.unique())
+		if (m_thread && m_thread.use_count() == 1)
 		{
 #if defined TORRENT_ASIO_DEBUGGING
 			wait_for_asio_handlers();
@@ -424,7 +423,7 @@ namespace {
 	session_proxy& session_proxy::operator=(session_proxy&&) noexcept = default;
 	session_proxy::~session_proxy()
 	{
-		if (m_thread && m_thread.unique())
+		if (m_thread && m_thread.use_count() == 1)
 		{
 #if defined TORRENT_ASIO_DEBUGGING
 			wait_for_asio_handlers();

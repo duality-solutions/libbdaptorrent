@@ -32,7 +32,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "libtorrent/session.hpp"
 #include "libtorrent/session_settings.hpp"
-#include "libtorrent/hasher.hpp"
 #include "libtorrent/alert_types.hpp"
 #include "libtorrent/time.hpp"
 #include "libtorrent/random.hpp"
@@ -79,8 +78,10 @@ void test_swarm(test_flags_t const flags)
 	settings_pack pack = settings();
 	pack.set_bool(settings_pack::allow_multiple_connections_per_ip, true);
 
+#if TORRENT_ABI_VERSION == 1
 	if (flags & test_flags::strict_super_seeding)
 		pack.set_bool(settings_pack::strict_super_seeding, true);
+#endif
 
 	if (flags & test_flags::suggest)
 		pack.set_int(settings_pack::suggest_mode, settings_pack::suggest_read_cache);

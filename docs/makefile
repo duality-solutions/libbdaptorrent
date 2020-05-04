@@ -6,7 +6,7 @@ WEB_PATH = ~/Documents/rasterbar/web/products/libtorrent
 endif
 
 ifndef RST2HTML
-RST2HTML:=rst2html
+RST2HTML:=rst2html.py
 endif
 
 ifndef AAFIGURE
@@ -15,9 +15,12 @@ endif
 
 REFERENCE_TARGETS = \
 	manual-ref \
+	tuning-ref \
 	upgrade_to_1.2-ref \
 	reference \
 	reference-Core \
+	reference-DHT \
+	reference-Session \
 	reference-Plugins \
 	reference-Create_Torrents \
 	reference-Error_Codes \
@@ -47,10 +50,10 @@ MANUAL_TARGETS = index \
 	python_binding \
 	projects \
 	utp \
-	tuning \
 	hacking \
 	streaming \
-	tutorial
+	tutorial \
+	fuzzing
 
 TARGETS = single-page-ref \
 	$(MANUAL_TARGETS) \
@@ -78,8 +81,9 @@ all: html pdf
 single-page-ref.rst: $(REFERENCE_TARGETS:=.rst)
 	python join_rst.py $(filter-out reference.rst, $(REFERENCE_TARGETS:=.rst)) >single-page-ref.rst
 
-settings.rst: ../include/libtorrent/settings_pack.hpp
+settings.rst hunspell/settings.dic: ../include/libtorrent/settings_pack.hpp hunspell/libtorrent.dic
 	python gen_settings_doc.py || { rm $@; exit 1; }
+	cat hunspell/libtorrent.dic >>hunspell/settings.dic
 
 stats_counters.rst: ../src/session_stats.cpp ../include/libtorrent/performance_counters.hpp
 	python gen_stats_doc.py || { rm $@; exit 1; }
@@ -99,11 +103,19 @@ ifneq ($(STAGE),)
 	cp $@ $(WEB_PATH)/$@
 endif
 
-$(REFERENCE_TARGETS:=.rst) plain_text_out.txt:gen_reference_doc.py ../include/libtorrent/*.hpp ../include/libtorrent/kademlia/*.hpp manual.rst settings.rst stats_counters.rst
+$(REFERENCE_TARGETS:=.rst) plain_text_out.txt:gen_reference_doc.py ../include/libtorrent/*.hpp ../include/libtorrent/kademlia/*.hpp manual.rst tuning.rst settings.rst stats_counters.rst hunspell/settings.dic
 	python gen_reference_doc.py --plain-output
 
-spell-check:plain_text_out.txt $(MANUAL_TARGETS:=.html)
+spell-check:plain_text_out.txt $(MANUAL_TARGETS:=.html) manual.rst settings.rst
+	python filter-rst.py manual.rst >manual-plain.txt
+	python filter-rst.py tuning.rst >tuning-plain.txt
+	python filter-rst.py settings.rst >settings-plain.txt
+	python filter-rst.py upgrade_to_1.2.rst >upgrade-1_2-plain.txt
 	hunspell -d hunspell/en_US -p hunspell/libtorrent.dic -l plain_text_out.txt >hunspell-report.txt
+	hunspell -d hunspell/en_US -p hunspell/libtorrent.dic -l manual-plain.txt >>hunspell-report.txt
+	hunspell -d hunspell/en_US -p hunspell/libtorrent.dic -l tuning-plain.txt >>hunspell-report.txt
+	hunspell -d hunspell/en_US -p hunspell/libtorrent.dic -l upgrade-1_2-plain.txt >>hunspell-report.txt
+	hunspell -d hunspell/en_US -p hunspell/settings.dic -l settings-plain.txt >>hunspell-report.txt
 	hunspell -d hunspell/en_US -p hunspell/libtorrent.dic -H -l $(MANUAL_TARGETS:=.html) >>hunspell-report.txt
 	@if [ -s hunspell-report.txt ]; then echo 'spellcheck failed, fix words or add to dictionary:'; cat hunspell-report.txt; false; fi;
 
@@ -132,5 +144,5 @@ ifneq ($(STAGE),)
 endif
 
 clean:
-	rm -f $(TARGETS:=.html) $(TARGETS:=.pdf) $(FIGURES:=.png) $(FIGURES:=.eps) $(REFERENCE_TARGETS:=.rst) settings.rst todo.html reference*.html stats_counters.rst
+	rm -f $(TARGETS:=.html) $(TARGETS:=.pdf) $(FIGURES:=.png) $(FIGURES:=.eps) $(REFERENCE_TARGETS:=.rst) settings.rst todo.html reference*.html stats_counters.rst hunspell/settings.dic
 

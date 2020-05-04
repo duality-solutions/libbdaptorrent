@@ -62,6 +62,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <sys/mount.h>
 #endif
 
+#if TORRENT_HAS_SYMLINK
+#include <unistd.h> // for symlink()
+#endif
+
 #include "libtorrent/aux_/disable_warnings_pop.hpp"
 
 #include "libtorrent/storage.hpp"
@@ -301,8 +305,7 @@ namespace libtorrent {
 			if (fs.file_size(file_index) == 0
 				&& err == boost::system::errc::no_such_file_or_directory)
 			{
-				std::string file_path = fs.file_path(file_index, m_save_path);
-				std::string dir = parent_path(file_path);
+				std::string dir = parent_path(fs.file_path(file_index, m_save_path));
 
 				if (dir != last_path)
 				{
@@ -317,12 +320,52 @@ namespace libtorrent {
 					}
 				}
 				ec.ec.clear();
-				// just creating the file is enough to make it zero-sized. If
-				// there's a race here and some other process truncates the file,
-				// it's not a problem, we won't access empty files ever again
-				file_handle f = open_file(file_index, open_mode::read_write
-					| open_mode::random_access, ec);
-				if (ec) return;
+
+#if TORRENT_HAS_SYMLINK
+				// create symlinks
+				if (fs.file_flags(file_index) & file_storage::flag_symlink)
+				{
+					// we make the symlink target relative to the link itself
+					std::string const target = lexically_relative(
+						parent_path(fs.file_path(file_index)), fs.symlink(file_index));
+					std::string const link = fs.file_path(file_index, m_save_path);
+					if (::symlink(target.c_str(), link.c_str()) != 0)
+					{
+						int const error = errno;
+						if (error == EEXIST)
+						{
+							// if the file exist, it may be a symlink already. if so,
+							// just verify the link target is what it's supposed to be
+							// note that readlink() does not null terminate the buffer
+							char buffer[512];
+							auto const ret = ::readlink(link.c_str(), buffer, sizeof(buffer));
+							if (ret <= 0 || target != string_view(buffer, std::size_t(ret)))
+							{
+								ec.ec = error_code(error, generic_category());
+								ec.file(file_index);
+								ec.operation = operation_t::symlink;
+								return;
+							}
+						}
+						else
+						{
+							ec.ec = error_code(error, generic_category());
+							ec.file(file_index);
+							ec.operation = operation_t::symlink;
+							return;
+						}
+					}
+				}
+				else
+#endif
+				{
+					// just creating the file is enough to make it zero-sized. If
+					// there's a race here and some other process truncates the file,
+					// it's not a problem, we won't access empty files ever again
+					file_handle f = open_file(file_index, open_mode::read_write
+						| open_mode::random_access, ec);
+					if (ec) return;
+				}
 			}
 			ec.ec.clear();
 		}

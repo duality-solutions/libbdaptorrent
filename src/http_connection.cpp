@@ -74,7 +74,6 @@ http_connection::http_connection(io_service& ios
 	, m_sock(ios)
 #ifdef TORRENT_USE_OPENSSL
 	, m_ssl_ctx(ssl_ctx)
-	, m_own_ssl_context(false)
 #endif
 #if TORRENT_USE_I2P
 	, m_i2p_conn(nullptr)
@@ -84,7 +83,6 @@ http_connection::http_connection(io_service& ios
 	, m_connect_handler(ch)
 	, m_filter_handler(fh)
 	, m_timer(ios)
-	, m_read_timeout(seconds(5))
 	, m_completion_timeout(seconds(5))
 	, m_limiter_timer(ios)
 	, m_last_receive(aux::time_now())
@@ -107,12 +105,7 @@ http_connection::http_connection(io_service& ios
 	TORRENT_ASSERT(m_handler);
 }
 
-http_connection::~http_connection()
-{
-#ifdef TORRENT_USE_OPENSSL
-	if (m_own_ssl_context) delete m_ssl_ctx;
-#endif
-}
+http_connection::~http_connection() = default;
 
 void http_connection::get(std::string const& url, time_duration timeout, int prio
 	, aux::proxy_settings const* ps, int handle_redirects, std::string const& user_agent
@@ -148,7 +141,7 @@ void http_connection::get(std::string const& url, time_duration timeout, int pri
 
 	if (ec)
 	{
-		m_timer.get_io_service().post(std::bind(&http_connection::callback
+		lt::get_io_service(m_timer).post(std::bind(&http_connection::callback
 			, me, ec, span<char>{}));
 		return;
 	}
@@ -160,7 +153,7 @@ void http_connection::get(std::string const& url, time_duration timeout, int pri
 		)
 	{
 		error_code err(errors::unsupported_url_protocol);
-		m_timer.get_io_service().post(std::bind(&http_connection::callback
+		lt::get_io_service(m_timer).post(std::bind(&http_connection::callback
 			, me, err, span<char>{}));
 		return;
 	}
@@ -184,12 +177,12 @@ void http_connection::get(std::string const& url, time_duration timeout, int pri
 			request << "Proxy-Authorization: Basic " << base64encode(
 				ps->username + ":" + ps->password) << "\r\n";
 
-		hostname = ps->hostname;
-		port = ps->port;
-
 		request << "Host: " << hostname;
 		if (port != default_port) request << ":" << port << "\r\n";
 		else request << "\r\n";
+
+		hostname = ps->hostname;
+		port = ps->port;
 	}
 	else
 	{
@@ -242,11 +235,8 @@ void http_connection::start(std::string const& hostname, int port
 	std::shared_ptr<http_connection> me(shared_from_this());
 
 	m_completion_timeout = timeout;
-	m_read_timeout = seconds(5);
-	if (m_read_timeout < timeout / 5) m_read_timeout = timeout / 5;
 	error_code ec;
-	m_timer.expires_from_now(std::min(
-		m_read_timeout, m_completion_timeout), ec);
+	m_timer.expires_from_now(m_completion_timeout, ec);
 	ADD_OUTSTANDING_ASYNC("http_connection::on_timeout");
 	m_timer.async_wait(std::bind(&http_connection::on_timeout
 		, std::weak_ptr<http_connection>(me), _1));
@@ -256,9 +246,13 @@ void http_connection::start(std::string const& hostname, int port
 	m_read_pos = 0;
 	m_priority = prio;
 
+#ifdef TORRENT_USE_OPENSSL
+	TORRENT_ASSERT(!ssl || m_ssl_ctx != nullptr);
+#endif
+
 	if (ec)
 	{
-		m_timer.get_io_service().post(std::bind(&http_connection::callback
+		lt::get_io_service(m_timer).post(std::bind(&http_connection::callback
 			, me, ec, span<char>{}));
 		return;
 	}
@@ -292,12 +286,11 @@ void http_connection::start(std::string const& hostname, int port
 			// quadruple the timeout for i2p destinations
 			// because i2p is sloooooow
 			m_completion_timeout *= 4;
-			m_read_timeout *= 4;
 
 #if TORRENT_USE_I2P
 			if (i2p_conn->proxy().type != settings_pack::i2p_proxy)
 			{
-				m_timer.get_io_service().post(std::bind(&http_connection::callback
+				lt::get_io_service(m_timer).post(std::bind(&http_connection::callback
 					, me, error_code(errors::no_i2p_router), span<char>{}));
 				return;
 			}
@@ -323,28 +316,14 @@ void http_connection::start(std::string const& hostname, int port
 #ifdef TORRENT_USE_OPENSSL
 		if (m_ssl)
 		{
-			if (m_ssl_ctx == nullptr)
-			{
-				m_ssl_ctx = new (std::nothrow) ssl::context(ssl::context::sslv23_client);
-				if (m_ssl_ctx)
-				{
-					m_own_ssl_context = true;
-					m_ssl_ctx->set_verify_mode(ssl::context::verify_none, ec);
-					if (ec)
-					{
-						m_timer.get_io_service().post(std::bind(&http_connection::callback
-								, me, ec, span<char>{}));
-						return;
-					}
-				}
-			}
+			TORRENT_ASSERT(m_ssl_ctx != nullptr);
 			userdata = m_ssl_ctx;
 		}
 #endif
 		// assume this is not a tracker connection. Tracker connections that
 		// shouldn't be subject to the proxy should pass in nullptr as the proxy
 		// pointer.
-		instantiate_connection(m_timer.get_io_service()
+		instantiate_connection(lt::get_io_service(m_timer)
 			, proxy ? *proxy : null_proxy, m_sock, userdata, nullptr, false, false);
 
 		if (m_bind_addr)
@@ -353,7 +332,7 @@ void http_connection::start(std::string const& hostname, int port
 			m_sock.bind(tcp::endpoint(*m_bind_addr, 0), ec);
 			if (ec)
 			{
-				m_timer.get_io_service().post(std::bind(&http_connection::callback
+				lt::get_io_service(m_timer).post(std::bind(&http_connection::callback
 					, me, ec, span<char>{}));
 				return;
 			}
@@ -362,7 +341,7 @@ void http_connection::start(std::string const& hostname, int port
 		setup_ssl_hostname(m_sock, hostname, ec);
 		if (ec)
 		{
-			m_timer.get_io_service().post(std::bind(&http_connection::callback
+			lt::get_io_service(m_timer).post(std::bind(&http_connection::callback
 				, me, ec, span<char>{}));
 			return;
 		}
@@ -384,11 +363,11 @@ void http_connection::start(std::string const& hostname, int port
 		}
 		else
 #endif
+		m_hostname = hostname;
 		if (ps && ps->proxy_hostnames
 			&& (ps->type == settings_pack::socks5
 				|| ps->type == settings_pack::socks5_pw))
 		{
-			m_hostname = hostname;
 			m_port = std::uint16_t(port);
 			m_endpoints.emplace_back(address(), m_port);
 			connect();
@@ -400,7 +379,6 @@ void http_connection::start(std::string const& hostname, int port
 				, std::bind(&http_connection::on_resolve
 				, me, _1, _2));
 		}
-		m_hostname = hostname;
 		m_port = std::uint16_t(port);
 	}
 }
@@ -418,8 +396,7 @@ void http_connection::on_timeout(std::weak_ptr<http_connection> p
 
 	time_point const now = clock_type::now();
 
-	if (c->m_start_time + c->m_completion_timeout <= now
-		|| c->m_last_receive + c->m_read_timeout <= now)
+	if (c->m_start_time + c->m_completion_timeout <= now)
 	{
 		// the connection timed out. If we have more endpoints to try, just
 		// close this connection. The on_connect handler will try the next
@@ -434,6 +411,10 @@ void http_connection::on_timeout(std::weak_ptr<http_connection> p
 		}
 		else
 		{
+			// the socket may have an outstanding operation, that keeps the
+			// http_connection object alive. We want to cancel all that.
+			error_code ec;
+			c->m_sock.close(ec);
 			c->callback(boost::asio::error::timed_out);
 			return;
 		}
@@ -445,9 +426,7 @@ void http_connection::on_timeout(std::weak_ptr<http_connection> p
 
 	ADD_OUTSTANDING_ASYNC("http_connection::on_timeout");
 	error_code ec;
-	c->m_timer.expires_at(std::min(
-		c->m_last_receive + c->m_read_timeout
-		, c->m_start_time + c->m_completion_timeout), ec);
+	c->m_timer.expires_at(c->m_start_time + c->m_completion_timeout, ec);
 	c->m_timer.async_wait(std::bind(&http_connection::on_timeout, p, _1));
 }
 
@@ -457,11 +436,16 @@ void http_connection::close(bool force)
 
 	error_code ec;
 	if (force)
+	{
 		m_sock.close(ec);
+		m_timer.cancel(ec);
+	}
 	else
+	{
 		async_shutdown(m_sock, shared_from_this());
+		m_timer.cancel(ec);
+	}
 
-	m_timer.cancel(ec);
 	m_limiter_timer.cancel(ec);
 
 	m_hostname.clear();
@@ -520,27 +504,15 @@ void http_connection::on_resolve(error_code const& e
 		return;
 	}
 
-	aux::random_shuffle(m_endpoints.begin(), m_endpoints.end());
+	aux::random_shuffle(m_endpoints);
 
 	// if we have been told to bind to a particular address
 	// only connect to addresses of the same family
 	if (m_bind_addr)
 	{
-		auto new_end = std::partition(m_endpoints.begin(), m_endpoints.end()
-			, [this] (tcp::endpoint const& ep)
-		{
-			if (is_v4(ep) != m_bind_addr->is_v4())
-				return false;
-			if (is_v4(ep) && m_bind_addr->is_v4())
-				return true;
-			TORRENT_ASSERT(is_v6(ep) && m_bind_addr->is_v6());
-			// don't try to connect to a global address with a local source address
-			// this is mainly needed to prevent attempting to connect to a global
-			// address using a ULA as the source
-			if (!is_local(ep.address()) && is_local(*m_bind_addr))
-				return false;
-			return ep.address().to_v6().scope_id() == m_bind_addr->to_v6().scope_id();
-		});
+		auto const new_end = std::remove_if(m_endpoints.begin(), m_endpoints.end()
+			, [&](tcp::endpoint const& ep) { return is_v4(ep) != m_bind_addr->is_v4(); });
+
 		m_endpoints.erase(new_end, m_endpoints.end());
 		if (m_endpoints.empty())
 		{
@@ -602,7 +574,7 @@ void http_connection::connect()
 	TORRENT_ASSERT(!m_connecting);
 	m_connecting = true;
 	m_sock.async_connect(target_address, std::bind(&http_connection::on_connect
-		, shared_from_this(), _1));
+		, me, _1));
 }
 
 void http_connection::on_connect(error_code const& e)
@@ -629,6 +601,8 @@ void http_connection::on_connect(error_code const& e)
 	}
 	else
 	{
+		error_code ec;
+		m_sock.close(ec);
 		callback(e);
 	}
 }
@@ -783,7 +757,7 @@ void http_connection::on_read(error_code const& e
 				// it would be nice to gracefully shut down SSL here
 				// but then we'd have to do all the reconnect logic
 				// in its handler. For now, just kill the connection.
-//				async_shutdown(m_sock, shared_from_this());
+//				async_shutdown(m_sock, me);
 				m_sock.close(ec);
 
 				std::string url = resolve_redirect_location(m_url, location);

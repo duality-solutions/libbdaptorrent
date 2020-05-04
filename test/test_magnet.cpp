@@ -87,7 +87,6 @@ TORRENT_TEST(magnet)
 	pack.set_int(settings_pack::file_pool_size, 543);
 	pack.set_int(settings_pack::urlseed_wait_retry, 74);
 	pack.set_int(settings_pack::initial_picker_threshold, 351);
-	pack.set_bool(settings_pack::upnp_ignore_nonrouters, true);
 	pack.set_bool(settings_pack::coalesce_writes, true);
 	pack.set_bool(settings_pack::close_redundant_connections, false);
 	pack.set_int(settings_pack::auto_scrape_interval, 235);
@@ -432,6 +431,48 @@ TORRENT_TEST(trailing_whitespace)
 	TEST_CHECK(h.is_valid());
 }
 
+// These tests don't work because we don't hand out an incomplete torrent_info
+// object. To make them work we would either have to set the correct metadata in
+// the test, or change the behavior to make `h.torrent_file()` return the
+// internal torrent_info object unconditionally
+/*
+TORRENT_TEST(preserve_trackers)
+{
+	session ses(settings());
+	error_code ec;
+	add_torrent_params p = parse_magnet_uri("magnet:?xt=urn:btih:abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&tr=https://test.com/announce", ec);
+	p.save_path = ".";
+	torrent_handle h = ses.add_torrent(p);
+	TEST_CHECK(h.is_valid());
+	TEST_CHECK(h.torrent_file()->trackers().size() == 1);
+	TEST_CHECK(h.torrent_file()->trackers().at(0).url == "https://test.com/announce");
+}
+
+TORRENT_TEST(preserve_web_seeds)
+{
+	session ses(settings());
+	error_code ec;
+	add_torrent_params p = parse_magnet_uri("magnet:?xt=urn:btih:abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&ws=https://test.com/test", ec);
+	p.save_path = ".";
+	torrent_handle h = ses.add_torrent(p);
+	TEST_CHECK(h.is_valid());
+	TEST_CHECK(h.torrent_file()->web_seeds().size() == 1);
+	TEST_CHECK(h.torrent_file()->web_seeds().at(0).url == "https://test.com/test");
+}
+
+TORRENT_TEST(preserve_dht_nodes)
+{
+	session ses(settings());
+	error_code ec;
+	add_torrent_params p = parse_magnet_uri("magnet:?xt=urn:btih:abaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&dht=test:1234", ec);
+	p.save_path = ".";
+	torrent_handle h = ses.add_torrent(p);
+	TEST_CHECK(h.is_valid());
+	TEST_CHECK(h.torrent_file()->nodes().size() == 1);
+	TEST_CHECK(h.torrent_file()->nodes().at(0).first == "test");
+	TEST_CHECK(h.torrent_file()->nodes().at(0).second == 1234);
+}
+*/
 TORRENT_TEST(invalid_tracker_escaping)
 {
 	error_code ec;
@@ -537,4 +578,24 @@ TORRENT_TEST(parse_magnet_select_only_invalid_quotes)
 {
 	test_select_only("magnet:?xt=urn:btih:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
 		"&dn=foo&so=\"1,2\"", {});
+}
+
+TORRENT_TEST(magnet_tr_x_uri)
+{
+	add_torrent_params p = parse_magnet_uri("magnet:"
+		"?tr.0=udp://1"
+		"&tr.1=http://2"
+		"&tr=http://3"
+		"&xt=urn:btih:c352cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd");
+	TEST_CHECK((p.trackers == std::vector<std::string>{
+		"udp://1", "http://2", "http://3"}));
+
+	TEST_CHECK((p.tracker_tiers == std::vector<int>{0, 1, 2 }));
+
+	p = parse_magnet_uri("magnet:"
+		"?tr.a=udp://1"
+		"&tr.1=http://2"
+		"&xt=urn:btih:c352cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd");
+	TEST_CHECK((p.trackers == std::vector<std::string>{"http://2" }));
+	TEST_CHECK((p.tracker_tiers == std::vector<int>{0}));
 }

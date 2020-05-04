@@ -214,11 +214,13 @@ set(libtorrent_aux_include_files
 	allocating_handler
 	array
 	bind_to_device
+	keepalive
 	block_cache_reference
 	byteswap
 	cppint_import_export
 	cpuid
 	deferred_handler
+	deprecated
 	deque
 	dev_random
 	disable_warnings_pop
@@ -296,6 +298,7 @@ set(sources
 	fingerprint
 	gzip
 	hasher
+	sha1
 	hex
 	http_connection
 	http_stream
@@ -317,6 +320,7 @@ set(sources
 	instantiate_connection
 	merkle
 	natpmp
+	openssl
 	part_file
 	packet_buffer
 	piece_picker
@@ -336,7 +340,6 @@ set(sources
 	session_handle
 	session_impl
 	session_settings
-	session_udp_sockets
 	proxy_settings
 	session_stats
 	settings_pack
@@ -524,11 +527,11 @@ target_include_directories(torrent-rasterbar PUBLIC
 target_compile_definitions(torrent-rasterbar
 	PUBLIC
 		$<$<CONFIG:Debug>:TORRENT_USE_ASSERTS>
+		BOOST_ASIO_ENABLE_CANCELIO
 	PRIVATE
 		TORRENT_BUILDING_LIBRARY
 		_FILE_OFFSET_BITS=64
 		BOOST_EXCEPTION_DISABLE
-		BOOST_ASIO_ENABLE_CANCELIO
 		BOOST_ASIO_HAS_STD_CHRONO
 )
 
@@ -597,6 +600,8 @@ target_optional_compile_definitions(torrent-rasterbar PUBLIC FEATURE NAME loggin
 	DESCRIPTION "build with logging" DISABLED TORRENT_DISABLE_LOGGING)
 target_optional_compile_definitions(torrent-rasterbar PUBLIC FEATURE NAME mutable-torrents DEFAULT ON
 	DESCRIPTION "Enables mutable torrent support" DISABLED TORRENT_DISABLE_MUTABLE_TORRENTS)
+target_optional_compile_definitions(torrent-rasterbar PUBLIC FEATURE NAME streaming DEFAULT ON
+	DESCRIPTION "Enables support for piece deadline" DISABLED TORRENT_DISABLE_STREAMING)
 
 find_public_dependency(Iconv)
 if(MSVC)
@@ -628,6 +633,12 @@ set_package_properties(OpenSSL
 )
 
 if(OPENSSL_FOUND)
+
+	# TODO: needed until https://gitlab.kitware.com/cmake/cmake/issues/19263 is fixed
+	if(WIN32 AND OPENSSL_USE_STATIC_LIBS)
+		target_link_libraries(OpenSSL::Crypto INTERFACE crypt32)
+	endif()
+
 	target_link_libraries(torrent-rasterbar PUBLIC OpenSSL::SSL)
 	target_compile_definitions(torrent-rasterbar PUBLIC TORRENT_USE_OPENSSL)
 	target_sources(torrent-rasterbar PRIVATE src/pe_crypto)
@@ -647,10 +658,6 @@ else(OPENSSL_FOUND)
 	if (LibGcrypt_FOUND)
 		target_compile_definitions(torrent-rasterbar PUBLIC TORRENT_USE_LIBGCRYPT)
 		target_link_libraries(torrent-rasterbar PRIVATE LibGcrypt::LibGcrypt)
-	else()
-		if (NOT WIN32 AND NOT APPLE)
-			target_sources(torrent-rasterbar PRIVATE src/sha1)
-		endif()
 	endif()
 endif(OPENSSL_FOUND)
 
@@ -666,12 +673,8 @@ if (dht)
 		${ed25519_sources}
 		${libtorrent_kademlia_include_files}
 		src/hasher512
+		src/sha512
 	)
-	target_include_directories(torrent-rasterbar PRIVATE ed25519/src)
-
-	if (NOT OpenSSL_FOUND AND NOT LibGcrypt_FOUND AND NOT WIN32 AND NOT APPLE)
-		target_sources(torrent-rasterbar PRIVATE src/sha512)
-	endif()
 else()
 	target_compile_definitions(torrent-rasterbar PUBLIC TORRENT_DISABLE_DHT)
 endif()

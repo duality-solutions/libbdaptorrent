@@ -85,7 +85,7 @@ namespace libtorrent { namespace dht {
 	dht_tracker::dht_tracker(dht_observer* observer
 		, io_service& ios
 		, send_fun_t const& send_fun
-		, dht_settings const& settings
+		, dht::settings const& settings
 		, counters& cnt
 		, dht_storage_interface& storage
 		, dht_state&& state)
@@ -116,21 +116,14 @@ namespace libtorrent { namespace dht {
 
 	void dht_tracker::new_socket(aux::listen_socket_handle const& s)
 	{
-		if (s.is_ssl()) return;
-
 		address const local_address = s.get_local_endpoint().address();
-		// don't try to start dht nodes on non-global IPv6 addresses
-		// with IPv4 the interface might be behind NAT so we can't skip them based on the scope of the local address
-		// and we might not have the external address yet
-		if (local_address.is_v6() && is_local(local_address))
-			return;
 		auto stored_nid = std::find_if(m_state.nids.begin(), m_state.nids.end()
 			, [&](node_ids_t::value_type const& nid) { return nid.first == local_address; });
 		node_id const nid = stored_nid != m_state.nids.end() ? stored_nid->second : node_id();
 		// must use piecewise construction because tracker_node::connection_timer
 		// is neither copyable nor movable
 		auto n = m_nodes.emplace(std::piecewise_construct_t(), std::forward_as_tuple(s)
-			, std::forward_as_tuple(m_key_refresh_timer.get_io_service()
+			, std::forward_as_tuple(get_io_service(m_key_refresh_timer)
 			, s, this, m_settings, nid, m_log, m_counters
 			, std::bind(&dht_tracker::get_node, this, _1, _2)
 			, m_storage));
@@ -157,13 +150,6 @@ namespace libtorrent { namespace dht {
 
 	void dht_tracker::delete_socket(aux::listen_socket_handle const& s)
 	{
-		if (s.is_ssl()) return;
-
-		address local_address = s.get_local_endpoint().address();
-		// since we don't start nodes on local IPv6 interfaces we don't need to remove them either
-		if (local_address.is_v6() && is_local(local_address))
-			return;
-		TORRENT_ASSERT(m_nodes.count(s) == 1);
 		m_nodes.erase(s);
 	}
 
@@ -525,7 +511,7 @@ namespace libtorrent { namespace dht {
 			// these are class A networks not available to the public
 			// if we receive messages from here, that seems suspicious
 			static std::uint8_t const class_a[] = { 3, 6, 7, 9, 11, 19, 21, 22, 25
-				, 26, 28, 29, 30, 33, 34, 48, 51, 56 };
+				, 26, 28, 29, 30, 33, 34, 48, 56 };
 
 			if (std::find(std::begin(class_a), std::end(class_a), b[0]) != std::end(class_a))
 			{
@@ -576,7 +562,7 @@ namespace libtorrent { namespace dht {
 
 	dht_tracker::tracker_node::tracker_node(io_service& ios
 		, aux::listen_socket_handle const& s, socket_manager* sock
-		, dht_settings const& settings
+		, dht::settings const& settings
 		, node_id const& nid
 		, dht_observer* observer, counters& cnt
 		, get_foreign_node_t get_foreign_node
@@ -601,7 +587,7 @@ namespace libtorrent { namespace dht {
 		return ret;
 	}
 
-	namespace {
+namespace {
 
 	std::vector<udp::endpoint> save_nodes(node const& dht)
 	{
@@ -613,7 +599,7 @@ namespace libtorrent { namespace dht {
 		return ret;
 	}
 
-	} // anonymous namespace
+} // anonymous namespace
 
 	dht_state dht_tracker::state() const
 	{
@@ -662,8 +648,10 @@ namespace libtorrent { namespace dht {
 	{
 		TORRENT_ASSERT(m_nodes.find(s) != m_nodes.end());
 
+		static_assert(LIBTORRENT_VERSION_MINOR < 16, "version number not supported by DHT");
+		static_assert(LIBTORRENT_VERSION_TINY < 16, "version number not supported by DHT");
 		static char const version_str[] = {'L', 'T'
-			, LIBTORRENT_VERSION_MAJOR, LIBTORRENT_VERSION_MINOR};
+			, LIBTORRENT_VERSION_MAJOR, (LIBTORRENT_VERSION_MINOR << 4) | LIBTORRENT_VERSION_TINY};
 		e["v"] = std::string(version_str, version_str + 4);
 
 		m_send_buf.clear();

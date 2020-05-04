@@ -66,28 +66,6 @@ namespace {
 	bool ignore_subdir(std::string const& leaf)
 	{ return leaf == ".." || leaf == "."; }
 
-	file_flags_t get_file_attributes(std::string const& p)
-	{
-		auto const path = convert_to_native_path_string(p);
-
-#ifdef TORRENT_WINDOWS
-		WIN32_FILE_ATTRIBUTE_DATA attr;
-		GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &attr);
-		if (attr.dwFileAttributes == INVALID_FILE_ATTRIBUTES) return {};
-		if (attr.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) return file_storage::flag_hidden;
-		return {};
-#else
-		struct ::stat s;
-		if (::lstat(path.c_str(), &s) < 0) return {};
-		file_flags_t file_attr = {};
-		if (s.st_mode & S_IXUSR)
-			file_attr |= file_storage::flag_executable;
-		if (S_ISLNK(s.st_mode))
-			file_attr |= file_storage::flag_symlink;
-		return file_attr;
-#endif
-	}
-
 #ifndef TORRENT_WINDOWS
 	std::string get_symlink_path_impl(char const* path)
 	{
@@ -102,16 +80,6 @@ namespace {
 		return convert_from_native_path(buf);
 	}
 #endif
-
-	std::string get_symlink_path(std::string const& p)
-	{
-#if defined TORRENT_WINDOWS
-		TORRENT_UNUSED(p);
-		return "";
-#else
-		return get_symlink_path_impl(p.c_str());
-#endif
-	}
 
 	void add_files_impl(file_storage& fs, std::string const& p
 		, std::string const& l, std::function<bool(std::string)> const& pred
@@ -146,13 +114,13 @@ namespace {
 		else
 		{
 			// #error use the fields from s
-			file_flags_t const file_flags = get_file_attributes(f);
+			file_flags_t const file_flags = aux::get_file_attributes(f);
 
 			// mask all bits to check if the file is a symlink
 			if ((file_flags & file_storage::flag_symlink)
 				&& (flags & create_torrent::symlinks))
 			{
-				std::string sym_path = get_symlink_path(f);
+				std::string const sym_path = aux::get_symlink_path(f);
 				fs.add_file(l, 0, file_flags, std::time_t(s.mtime), sym_path);
 			}
 			else
@@ -201,6 +169,42 @@ namespace {
 	}
 
 } // anonymous namespace
+
+namespace aux {
+
+	file_flags_t get_file_attributes(std::string const& p)
+	{
+		auto const path = convert_to_native_path_string(p);
+
+#ifdef TORRENT_WINDOWS
+		WIN32_FILE_ATTRIBUTE_DATA attr;
+		GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &attr);
+		if (attr.dwFileAttributes == INVALID_FILE_ATTRIBUTES) return {};
+		if (attr.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) return file_storage::flag_hidden;
+		return {};
+#else
+		struct ::stat s{};
+		if (::lstat(path.c_str(), &s) < 0) return {};
+		file_flags_t file_attr = {};
+		if (s.st_mode & S_IXUSR)
+			file_attr |= file_storage::flag_executable;
+		if (S_ISLNK(s.st_mode))
+			file_attr |= file_storage::flag_symlink;
+		return file_attr;
+#endif
+	}
+
+	std::string get_symlink_path(std::string const& p)
+	{
+#if defined TORRENT_WINDOWS
+		TORRENT_UNUSED(p);
+		return "";
+#else
+		return get_symlink_path_impl(p.c_str());
+#endif
+	}
+
+} // anonymous aux
 
 #if TORRENT_ABI_VERSION == 1
 
@@ -290,7 +294,14 @@ namespace {
 		}
 
 		counters cnt;
-		disk_io_thread disk_thread(ios, cnt);
+		aux::session_settings sett;
+
+		sett.set_int(settings_pack::cache_size, 0);
+		int const num_threads = disk_io_thread::hasher_thread_divisor - 1;
+		int const jobs_per_thread = 4;
+		sett.set_int(settings_pack::aio_threads, num_threads);
+
+		disk_io_thread disk_thread(ios, sett, cnt);
 		disk_aborter da(disk_thread);
 
 		aux::vector<download_priority_t, file_index_t> priorities;
@@ -306,14 +317,6 @@ namespace {
 
 		storage_holder storage = disk_thread.new_torrent(default_storage_constructor
 			, params, std::shared_ptr<void>());
-
-		settings_pack sett;
-		sett.set_int(settings_pack::cache_size, 0);
-		int const num_threads = disk_io_thread::hasher_thread_divisor - 1;
-		int const jobs_per_thread = 4;
-		sett.set_int(settings_pack::aio_threads, num_threads);
-
-		disk_thread.set_settings(&sett);
 
 		int const piece_read_ahead = std::max(num_threads * jobs_per_thread
 			, default_block_size / t.piece_length());
@@ -393,16 +396,9 @@ namespace {
 			alignment = piece_size;
 
 		// make sure the size is an even power of 2
-#if TORRENT_USE_ASSERTS
-		for (int i = 0; i < 31; ++i)
-		{
-			if (piece_size & (1 << i))
-			{
-				TORRENT_ASSERT((piece_size & ~(1 << i)) == 0);
-				break;
-			}
-		}
-#endif
+		// i.e. only a single bit is set
+		TORRENT_ASSERT((piece_size & (piece_size - 1)) == 0);
+
 		m_files.set_piece_length(piece_size);
 		if (flags & (optimize_alignment | mutable_torrent_support))
 			m_files.optimize(pad_file_limit, alignment, bool(flags & mutable_torrent_support));
@@ -593,9 +589,9 @@ namespace {
 			{
 				entry& sympath_e = info["symlink path"];
 
-				std::string const split = split_path(m_files.symlink(first));
-				for (char const* e = split.c_str(); e != nullptr; e = next_path_element(e))
-					sympath_e.list().emplace_back(e);
+				for (auto elems = lsplit_path(m_files.symlink(first)); !elems.first.empty();
+					elems = lsplit_path(elems.second))
+					sympath_e.list().emplace_back(elems.first);
 			}
 			if (!m_filehashes.empty())
 			{
@@ -619,12 +615,13 @@ namespace {
 
 					{
 						entry& path_e = file_e["path"];
-						std::string const split = split_path(m_files.file_path(i));
-						TORRENT_ASSERT(split.c_str() == m_files.name());
 
-						for (char const* e = next_path_element(split.c_str());
-							e != nullptr; e = next_path_element(e))
-							path_e.list().emplace_back(e);
+						std::string const p = m_files.file_path(i);
+						// deliberately skip the first path element, since that's the
+						// "name" of the torrent already
+						string_view path = lsplit_path(p).second;
+						for (auto elems = lsplit_path(path); !elems.first.empty(); elems = lsplit_path(elems.second))
+							path_e.list().emplace_back(elems.first);
 					}
 
 					file_flags_t const flags = m_files.file_flags(i);
@@ -642,9 +639,9 @@ namespace {
 					{
 						entry& sympath_e = file_e["symlink path"];
 
-						std::string const split = split_path(m_files.symlink(i));
-						for (char const* e = split.c_str(); e != nullptr; e = next_path_element(e))
-							sympath_e.list().emplace_back(e);
+						for (auto elems = lsplit_path(m_files.symlink(i)); !elems.first.empty();
+							elems = lsplit_path(elems.second))
+							sympath_e.list().emplace_back(elems.first);
 					}
 					if (!m_filehashes.empty() && m_filehashes[i] != sha1_hash())
 					{
@@ -694,9 +691,6 @@ namespace {
 			for (sha1_hash const& h : m_piece_hash)
 				p.append(h.data(), h.size());
 		}
-
-		std::vector<char> buf;
-		bencode(std::back_inserter(buf), info);
 
 		return dict;
 	}

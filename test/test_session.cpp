@@ -203,7 +203,7 @@ TORRENT_TEST(load_empty_file)
 	torrent_handle h = ses.add_torrent(std::move(atp), ec);
 
 	TEST_CHECK(!h.is_valid());
-	TEST_CHECK(ec == error_code(errors::no_metadata))
+	TEST_CHECK(ec == error_code(errors::no_metadata));
 }
 
 TORRENT_TEST(session_stats)
@@ -431,7 +431,7 @@ TORRENT_TEST(save_state_peer_id)
 auto const count_dht_inits = [](session& ses)
 {
 	int count = 0;
-	int num = 120; // this number is adjusted per version, an estimate
+	int num = 200; // this number is adjusted per version, an estimate
 	time_point const end_time = clock_type::now() + seconds(15);
 	while (true)
 	{
@@ -460,7 +460,7 @@ TORRENT_TEST(init_dht_default_bootstrap)
 {
 	settings_pack p = settings();
 	p.set_bool(settings_pack::enable_dht, true);
-	p.set_int(settings_pack::alert_mask, alert::all_categories);
+	p.set_int(settings_pack::alert_mask, alert_category::all);
 	// default value
 	p.set_str(settings_pack::dht_bootstrap_nodes, "dht.libtorrent.org:25401");
 
@@ -474,7 +474,7 @@ TORRENT_TEST(init_dht_invalid_bootstrap)
 {
 	settings_pack p = settings();
 	p.set_bool(settings_pack::enable_dht, true);
-	p.set_int(settings_pack::alert_mask, alert::all_categories);
+	p.set_int(settings_pack::alert_mask, alert_category::all);
 	// no default value
 	p.set_str(settings_pack::dht_bootstrap_nodes, "test.libtorrent.org:25401:8888");
 
@@ -488,11 +488,48 @@ TORRENT_TEST(init_dht_empty_bootstrap)
 {
 	settings_pack p = settings();
 	p.set_bool(settings_pack::enable_dht, true);
-	p.set_int(settings_pack::alert_mask, alert::all_categories);
+	p.set_int(settings_pack::alert_mask, alert_category::all);
 	// empty value
 	p.set_str(settings_pack::dht_bootstrap_nodes, "");
 
 	lt::session s(p);
+
+	int const count = count_dht_inits(s);
+	TEST_EQUAL(count, 1);
+}
+
+TORRENT_TEST(dht_upload_rate_overflow_pack)
+{
+	settings_pack p = settings();
+	// make sure this doesn't cause an overflow
+	p.set_int(settings_pack::dht_upload_rate_limit, std::numeric_limits<int>::max());
+	p.set_int(settings_pack::alert_mask, alert_category_t(std::uint32_t(p.get_int(settings_pack::alert_mask)))
+		| alert_category::dht_log);
+	p.set_bool(settings_pack::enable_dht, true);
+	lt::session s(p);
+
+	p = s.get_settings();
+	TEST_EQUAL(p.get_int(settings_pack::dht_upload_rate_limit), std::numeric_limits<int>::max() / 3);
+
+	int const count = count_dht_inits(s);
+	TEST_EQUAL(count, 1);
+}
+
+TORRENT_TEST(dht_upload_rate_overflow)
+{
+	settings_pack p = settings();
+	p.set_bool(settings_pack::enable_dht, true);
+	p.set_int(settings_pack::alert_mask, alert_category_t(std::uint32_t(p.get_int(settings_pack::alert_mask)))
+		| alert_category::dht_log);
+	lt::session s(p);
+
+	// make sure this doesn't cause an overflow
+	dht::dht_settings sett;
+	sett.upload_rate_limit = std::numeric_limits<int>::max();
+	s.set_dht_settings(sett);
+
+	p = s.get_settings();
+	TEST_EQUAL(p.get_int(settings_pack::dht_upload_rate_limit), std::numeric_limits<int>::max() / 3);
 
 	int const count = count_dht_inits(s);
 	TEST_EQUAL(count, 1);
@@ -540,19 +577,22 @@ TORRENT_TEST(reopen_network_sockets)
 	};
 
 	settings_pack p = settings();
-	p.set_int(settings_pack::alert_mask, alert::all_categories);
-	p.set_str(settings_pack::listen_interfaces, "0.0.0.0:6881");
+	p.set_int(settings_pack::alert_mask, alert_category::all);
+	p.set_str(settings_pack::listen_interfaces, "127.0.0.1:6881l");
 
 	p.set_bool(settings_pack::enable_upnp, true);
 	p.set_bool(settings_pack::enable_natpmp, true);
 
 	lt::session s(p);
 
-	TEST_CHECK(count_alerts(s, 2, 4));
+	// NAT-PMP nad UPnP will be disabled when we only listen on loopback
+	TEST_CHECK(count_alerts(s, 2, 0));
 
+	// this is a bit of a pointless test now, since neither UPnP nor NAT-PMP are
+	// enabled for loopback
 	s.reopen_network_sockets(session_handle::reopen_map_ports);
 
-	TEST_CHECK(count_alerts(s, 0, 4));
+	TEST_CHECK(count_alerts(s, 0, 0));
 
 	s.reopen_network_sockets({});
 

@@ -84,7 +84,7 @@ void peer_conn::on_connect(error_code const& ec)
 	char* h = static_cast<char*>(malloc(sizeof(handshake)));
 	memcpy(h, handshake, sizeof(handshake));
 	std::memcpy(h + 28, m_ti.info_hash().data(), 20);
-	std::generate(h + 48, h + 68, &rand);
+	lt::aux::random_bytes({h + 48, 20});
 	// for seeds, don't send the interested message
 	boost::asio::async_write(s, boost::asio::buffer(h, (sizeof(handshake) - 1)
 		- (m_mode == peer_mode_t::uploader ? 5 : 0))
@@ -394,7 +394,7 @@ void peer_conn::on_message(error_code const& ec, size_t bytes_transferred)
 			pieces.clear();
 			for (int i = 0; i < int(pieces.size()); ++i)
 				pieces.push_back(i);
-			aux::random_shuffle(pieces.begin(), pieces.end());
+			aux::random_shuffle(pieces);
 		}
 		else if (msg == 4) // have
 		{
@@ -418,7 +418,7 @@ void peer_conn::on_message(error_code const& ec, size_t bytes_transferred)
 				}
 				++ptr;
 			}
-			aux::random_shuffle(pieces.begin(), pieces.end());
+			aux::random_shuffle(pieces);
 		}
 		else if (msg == 7) // piece
 		{
