@@ -93,7 +93,7 @@ TORRENT_TEST(piece_size)
 	for (auto const& t : samples)
 	{
 		lt::file_storage fs;
-		fs.add_file("a", t.first);
+		fs.add_file("b", t.first);
 		lt::create_torrent ct(fs, 0);
 		TEST_CHECK(ct.piece_length() == static_cast<int>(t.second));
 	}

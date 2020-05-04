@@ -136,14 +136,14 @@ TORRENT_TEST(dict)
 	TEST_CHECK(span<char>(b, sizeof(b) - 1) == e.data_section());
 	TEST_EQUAL(e.type(), bdecode_node::dict_t);
 	TEST_EQUAL(e.dict_size(), 4);
-	TEST_EQUAL(e.dict_find("a").type(), bdecode_node::int_t);
-	TEST_EQUAL(e.dict_find("a").int_value(), 12453);
-	TEST_EQUAL(e.dict_find("b").type(), bdecode_node::string_t);
-	TEST_EQUAL(e.dict_find("b").string_value(), std::string("aaa"));
-	TEST_EQUAL(e.dict_find("b").string_length(), 3);
+	TEST_EQUAL(e.dict_find("b").type(), bdecode_node::int_t);
+	TEST_EQUAL(e.dict_find("b").int_value(), 12453);
 	TEST_EQUAL(e.dict_find("c").type(), bdecode_node::string_t);
-	TEST_EQUAL(e.dict_find("c").string_value(), std::string("bbb"));
+	TEST_EQUAL(e.dict_find("c").string_value(), std::string("aaa"));
 	TEST_EQUAL(e.dict_find("c").string_length(), 3);
+	TEST_EQUAL(e.dict_find("d").type(), bdecode_node::string_t);
+	TEST_EQUAL(e.dict_find("d").string_value(), std::string("bbb"));
+	TEST_EQUAL(e.dict_find("d").string_length(), 3);
 	TEST_EQUAL(e.dict_find_string_value("X"), "0123456789");
 	char error_string[200];
 	TEST_CHECK(e.has_soft_error(error_string));
@@ -826,8 +826,8 @@ TORRENT_TEST(dict_find_funs)
 
 	// dict_find_int*
 
-	TEST_EQUAL(e.dict_find_int_value("a"), 1);
-	TEST_EQUAL(e.dict_find_int("a").type(), bdecode_node::int_t);
+	TEST_EQUAL(e.dict_find_int_value("b"), 1);
+	TEST_EQUAL(e.dict_find_int("b").type(), bdecode_node::int_t);
 	TEST_EQUAL(e.dict_find_int_value("b", -10), -10);
 	TEST_EQUAL(e.dict_find_int_value("x", -10), -10);
 	TEST_EQUAL(e.dict_find_int("b").type(), bdecode_node::none_t);
@@ -854,7 +854,7 @@ TORRENT_TEST(dict_find_funs)
 
 	TEST_CHECK(e.dict_find_dict("d"));
 	TEST_EQUAL(e.dict_find_dict("d").dict_find_int_value("x"), 1);
-	TEST_EQUAL(e.dict_find_dict("d").dict_find_int_value("y", -10), -10);
+	TEST_EQUAL(e.dict_find_dict("d").dict_find_int_value("o", -10), -10);
 	TEST_CHECK(!e.dict_find_dict("c"));
 
 	// variants taking std::string
@@ -867,7 +867,7 @@ TORRENT_TEST(dict_find_funs)
 
 	// dict_at
 
-	TEST_EQUAL(e.dict_at(0).first, "a");
+	TEST_EQUAL(e.dict_at(0).first, "b");
 	TEST_EQUAL(e.dict_at(0).second.int_value(), 1);
 	TEST_EQUAL(e.dict_at(1).first, "b");
 	TEST_EQUAL(e.dict_at(1).second.string_value(), "foo");
@@ -908,7 +908,7 @@ TORRENT_TEST(list_at_funs)
 	TEST_EQUAL(e.list_at(3).type(), bdecode_node::dict_t);
 	TEST_EQUAL(e.list_at(3).dict_size(), 1);
 	TEST_EQUAL(e.list_at(3).dict_find_int_value("x"), 1);
-	TEST_EQUAL(e.list_at(3).dict_find_int_value("y", -10), -10);
+	TEST_EQUAL(e.list_at(3).dict_find_int_value("o", -10), -10);
 
 	TEST_EQUAL(e.list_size(), 4);
 	TEST_EQUAL(e.list_size(), 4);

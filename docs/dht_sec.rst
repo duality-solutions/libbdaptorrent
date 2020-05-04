@@ -143,9 +143,9 @@ port.
 The IP portion is the same byte sequence used to verify the node ID.
 
 It is important that the ``ip`` field is in the top level dictionary. Nodes that
-enforce the node-ID will respond with an error message ("y": "e", "e": { ... }),
+enforce the node-ID will respond with an error message ("o": "e", "e": { ... }),
 whereas a node that supports this extension but without enforcing it will respond
-with a normal reply ("y": "r", "r": { ... }).
+with a normal reply ("o": "r", "r": { ... }).
 
 A DHT node which receives an ``ip`` result in a request SHOULD consider restarting
 its DHT node with a new node ID, taking this IP into account. Since a single node

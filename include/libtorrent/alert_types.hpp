@@ -68,7 +68,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #else
 #define PROGRESS_NOTIFICATION
 #endif
-
+// Maximum Transmission Unit limits Ethernet to 1500 bytes.  DS-Lite over PPPoE has a 1452 bytes maximum limit
+static constexpr unsigned int MAX_DHT_MUTABLE_DATA_LENGTH = 1249; // 203 bytes overhead for encoding plus 1249 = 1452 (MTU for DS-Lite over PPPoE)
 
 namespace libtorrent {
 

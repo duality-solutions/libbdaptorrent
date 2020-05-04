@@ -133,12 +133,12 @@ bool get_peers::invoke(observer_ptr o)
 	if (m_done) return false;
 
 	entry e;
-	e["y"] = "q";
-	entry& a = e["a"];
+	e["o"] = "q";
+	entry& broadcast = e["b"];
 
 	e["q"] = "get_peers";
-	a["info_hash"] = target().to_string();
-	if (m_noseeds) a["noseed"] = 1;
+	broadcast["info_hash"] = target().to_string();
+	if (m_noseeds) broadcast["noseed"] = 1;
 
 	if (m_node.observer() != nullptr)
 	{
@@ -226,9 +226,9 @@ bool obfuscated_get_peers::invoke(observer_ptr o)
 	}
 
 	entry e;
-	e["y"] = "q";
+	e["o"] = "q";
 	e["q"] = "get_peers";
-	entry& a = e["a"];
+	entry& broadcast = e["b"];
 
 	// This logic will obfuscate the target info-hash
 	// we're looking up, in order to preserve more privacy
@@ -240,7 +240,7 @@ bool obfuscated_get_peers::invoke(observer_ptr o)
 	node_id mask = generate_prefix_mask(shared_prefix + 3);
 	node_id obfuscated_target = generate_random_id() & ~mask;
 	obfuscated_target |= target() & mask;
-	a["info_hash"] = obfuscated_target.to_string();
+	broadcast["info_hash"] = obfuscated_target.to_string();
 
 	if (m_node.observer() != nullptr)
 	{

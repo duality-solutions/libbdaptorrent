@@ -135,11 +135,11 @@ bool get_item::invoke(observer_ptr o)
 	if (m_done) return false;
 
 	entry e;
-	e["y"] = "q";
-	entry& a = e["a"];
+	e["o"] = "q";
+	entry& broadcast = e["b"];
 
 	e["q"] = "get";
-	a["target"] = target().to_string();
+	broadcast["target"] = target().to_string();
 
 	m_node.stats_counters().inc_stats_counter(counters::dht_get_out);
 

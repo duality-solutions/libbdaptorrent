@@ -1678,7 +1678,7 @@ namespace {
 
 	std::string dht_immutable_item_alert::message() const
 	{
-		char msg[1050];
+		char msg[MAX_DHT_MUTABLE_DATA_LENGTH + 50];
 		std::snprintf(msg, sizeof(msg), "DHT immutable item %s [ %s ]"
 			, aux::to_hex(target).c_str()
 			, item.to_string().c_str());
@@ -1699,7 +1699,7 @@ namespace {
 
 	std::string dht_mutable_item_alert::message() const
 	{
-		char msg[1050];
+		char msg[MAX_DHT_MUTABLE_DATA_LENGTH + 50];
 		std::snprintf(msg, sizeof(msg), "DHT mutable item (key=%s salt=%s seq=%" PRId64 " %s) [ %s ]"
 			, aux::to_hex(key).c_str()
 			, salt.c_str()
@@ -1734,7 +1734,7 @@ namespace {
 
 	std::string dht_put_alert::message() const
 	{
-		char msg[1050];
+		char msg[MAX_DHT_MUTABLE_DATA_LENGTH + 50];
 		if (target.is_all_zeros())
 		{
 			std::snprintf(msg, sizeof(msg), "DHT put complete (success=%d key=%s sig=%s salt=%s seq=%" PRId64 ")"
@@ -2205,7 +2205,7 @@ namespace {
 
 	std::string dht_direct_response_alert::message() const
 	{
-		char msg[1050];
+		char msg[MAX_DHT_MUTABLE_DATA_LENGTH + 50];
 		std::snprintf(msg, sizeof(msg), "DHT direct response (address=%s) [ %s ]"
 			, endpoint.address().to_string().c_str()
 			, m_response_size ? std::string(m_alloc.get().ptr(m_response_idx)

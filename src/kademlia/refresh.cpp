@@ -50,8 +50,8 @@ observer_ptr bootstrap::new_observer(udp::endpoint const& ep
 bool bootstrap::invoke(observer_ptr o)
 {
 	entry e;
-	e["y"] = "q";
-	entry& a = e["a"];
+	e["o"] = "q";
+	entry& broadcast = e["b"];
 
 	e["q"] = "get_peers";
 	// in case our node id changes during the bootstrap, make sure to always use
@@ -59,18 +59,18 @@ bool bootstrap::invoke(observer_ptr o)
 	// algorithm)
 	node_id target = get_node().nid();
 	make_id_secret(target);
-	a["info_hash"] = target.to_string();
+	broadcast["info_hash"] = target.to_string();
 
 	if (o->flags & observer::flag_initial)
 	{
 		// if this packet is being sent to a bootstrap/router node, let it know
 		// that we're actually bootstrapping (as opposed to being collateral
 		// traffic).
-		a["bs"] = 1;
+		broadcast["bs"] = 1;
 	}
 
 //	e["q"] = "find_node";
-//	a["target"] = target.to_string();
+//	broadcast["target"] = target.to_string();
 	m_node.stats_counters().inc_stats_counter(counters::dht_get_peers_out);
 	return m_node.m_rpc.invoke(e, o->target_ep(), o);
 }

@@ -4,7 +4,7 @@ dist: bionic
 matrix:
   fast_finish: true
   include:
-    - if: repo = arvidn/libtorrent
+    - if: repo = duality-solutions/libbdaptorrent
       env: variant=release sonar_scan=1 toolset=gcc
     - env: variant=release toolset=gcc check_headers=1 python=1
     - env: variant=test_debug crypto=openssl docs=1 tests=1 examples=1 tools=1 toolset=darwin
@@ -35,12 +35,6 @@ notifications:
 git:
   submodules: false
   depth: 1
-
-branches:
-  only:
-    - master
-    - RC_1_2
-    - RC_1_1
 
 cache:
   directories:

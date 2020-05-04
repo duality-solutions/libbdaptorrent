@@ -33,6 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <libtorrent/hasher.hpp>
 #include <libtorrent/kademlia/item.hpp>
 #include <libtorrent/bencode.hpp>
+#include <libtorrent/alert_types.hpp>
 #include <libtorrent/kademlia/ed25519.hpp>
 #include <libtorrent/aux_/numeric_cast.hpp>
 
@@ -101,7 +102,7 @@ bool verify_mutable_item(
 	, public_key const& pk
 	, signature const& sig)
 {
-	char str[1200];
+	char str[MAX_DHT_MUTABLE_DATA_LENGTH + 200];
 	int len = canonical_string(v, seq, salt, str);
 
 	return ed25519_verify(sig, {str, len}, pk);
@@ -120,7 +121,7 @@ signature sign_mutable_item(
 	, public_key const& pk
 	, secret_key const& sk)
 {
-	char str[1200];
+	char str[MAX_DHT_MUTABLE_DATA_LENGTH + 200];
 	int const len = canonical_string(v, seq, salt, str);
 
 	return ed25519_sign({str, len}, pk, sk);
@@ -162,9 +163,9 @@ void item::assign(entry v)
 void item::assign(entry v, span<char const> salt
 	, sequence_number const seq, public_key const& pk, secret_key const& sk)
 {
-	std::array<char, 1000> buffer;
+	std::array<char, MAX_DHT_MUTABLE_DATA_LENGTH> buffer;
 	int const bsize = bencode(buffer.begin(), v);
-	TORRENT_ASSERT(bsize <= 1000);
+	TORRENT_ASSERT(bsize <= static_cast<int>(MAX_DHT_MUTABLE_DATA_LENGTH));
 	m_sig = sign_mutable_item(span<char const>(buffer).first(bsize)
 		, salt, seq, pk, sk);
 	m_salt.assign(salt.data(), static_cast<std::size_t>(salt.size()));
@@ -183,7 +184,7 @@ void item::assign(bdecode_node const& v)
 bool item::assign(bdecode_node const& v, span<char const> salt
 	, sequence_number const seq, public_key const& pk, signature const& sig)
 {
-	TORRENT_ASSERT(v.data_section().size() <= 1000);
+	TORRENT_ASSERT(v.data_section().size() <= MAX_DHT_MUTABLE_DATA_LENGTH);
 	if (!verify_mutable_item(v.data_section(), salt, seq, pk, sig))
 		return false;
 	m_pk = pk;

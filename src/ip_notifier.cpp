@@ -47,6 +47,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <iphlpapi.h>
 #include <mutex>
 #include "libtorrent/aux_/disable_warnings_pop.hpp"
+#else
+#include <boost/asio.hpp>
 #endif
 
 namespace libtorrent { namespace aux {
