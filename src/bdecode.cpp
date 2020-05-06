@@ -119,7 +119,27 @@ namespace {
 		return (&t)[1].offset - t.offset;
 	}
 
-	} // anonymous namespace
+} // anonymous namespace
+
+namespace detail {
+	void escape_string(std::string& ret, char const* str, int len)
+	{
+		for (int i = 0; i < len; ++i)
+		{
+			if (str[i] >= 32 && str[i] < 127)
+			{
+				ret += str[i];
+			}
+			else
+			{
+				char tmp[5];
+				std::snprintf(tmp, sizeof(tmp), "\\x%02x", std::uint8_t(str[i]));
+				ret += tmp;
+			}
+		}
+	}
+}
+
 
 
 	// reads the string between start and end, or up to the first occurrance of
@@ -157,7 +177,7 @@ namespace {
 	}
 
 
-	struct bdecode_error_category : boost::system::error_category
+	struct bdecode_error_category final : boost::system::error_category
 	{
 		const char* name() const BOOST_SYSTEM_NOEXCEPT override;
 		std::string message(int ev) const override;
@@ -922,7 +942,8 @@ namespace {
 				&& ret.m_tokens[stack[current_frame - 1].token].type == bdecode_token::dict)
 			{
 				// the next item we parse is the opposite
-				stack[current_frame - 1].state = ~stack[current_frame - 1].state;
+				// state is an unsigned 1-bit member. adding 1 will flip the bit
+				stack[current_frame - 1].state = (stack[current_frame - 1].state + 1) & 1;
 			}
 
 			// this terminates the top level node, we're done!
@@ -1016,23 +1037,6 @@ done:
 		return line_len;
 	}
 
-	void escape_string(std::string& ret, char const* str, int len)
-	{
-		for (int i = 0; i < len; ++i)
-		{
-			if (str[i] >= 32 && str[i] < 127)
-			{
-				ret += str[i];
-			}
-			else
-			{
-				char tmp[5];
-				std::snprintf(tmp, sizeof(tmp), "\\x%02x", std::uint8_t(str[i]));
-				ret += tmp;
-			}
-		}
-	}
-
 	void print_string(std::string& ret, string_view str, bool single_line)
 	{
 		int const len = int(str.size());
@@ -1060,13 +1064,13 @@ done:
 		}
 		if (single_line && len > 20)
 		{
-			escape_string(ret, str.data(), 9);
+			detail::escape_string(ret, str.data(), 9);
 			ret += "...";
-			escape_string(ret, str.data() + len - 9, 9);
+			detail::escape_string(ret, str.data() + len - 9, 9);
 		}
 		else
 		{
-			escape_string(ret, str.data(), len);
+			detail::escape_string(ret, str.data(), len);
 		}
 		ret += "'";
 	}

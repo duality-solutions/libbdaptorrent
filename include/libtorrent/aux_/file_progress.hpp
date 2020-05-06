@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include <vector>
 #include <cstdint>
+#include <functional>
 
 #include "libtorrent/aux_/export.hpp"
 #include "libtorrent/units.hpp"
@@ -54,8 +55,6 @@ namespace libtorrent {
 
 class piece_picker;
 class file_storage;
-class alert_manager;
-struct torrent_handle;
 
 namespace aux {
 
@@ -72,7 +71,7 @@ namespace aux {
 		void clear();
 
 		void update(file_storage const& fs, piece_index_t index
-			, alert_manager* alerts, torrent_handle const& h);
+			, std::function<void(file_index_t)> const& completed_cb);
 
 	private:
 

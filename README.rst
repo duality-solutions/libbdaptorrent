@@ -31,6 +31,9 @@ libtorrent
 .. image:: https://www.openhub.net/p/rasterbar-libtorrent/widgets/project_thin_badge.gif
     :target: https://www.openhub.net/p/rasterbar-libtorrent?ref=sample
 
+.. image:: https://bestpractices.coreinfrastructure.org/projects/3020/badge
+    :target: https://bestpractices.coreinfrastructure.org/en/projects/3020
+
 libtorrent is an open source C++ library implementing the BitTorrent protocol,
 along with most popular extensions, making it suitable for real world
 deployment. It is configurable to be able to fit both servers and embedded
@@ -51,6 +54,10 @@ directory.
 
 See `building.html`__ for more details on how to build and which configuration
 options are available. For python bindings, see `the python docs`__.
+
+libtorrent `ABI report`_.
+
+.. _`ABI report`: https://abi-laboratory.pro/index.php?view=timeline&l=libtorrent
 
 .. __: docs/building.rst
 .. __: docs/python_binding.rst

@@ -64,6 +64,7 @@ namespace libtorrent {
 struct http_connection;
 struct resolver_interface;
 
+// internal
 constexpr int default_max_bottled_buffer_size = 2 * 1024 * 1024;
 
 using http_handler = std::function<void(error_code const&
@@ -81,12 +82,12 @@ struct TORRENT_EXTRA_EXPORT http_connection
 	http_connection(io_service& ios
 		, resolver_interface& resolver
 		, http_handler const& handler
-		, bool bottled = true
-		, int max_bottled_buffer_size = default_max_bottled_buffer_size
-		, http_connect_handler const& ch = http_connect_handler()
-		, http_filter_handler const& fh = http_filter_handler()
+		, bool bottled
+		, int max_bottled_buffer_size
+		, http_connect_handler const& ch
+		, http_filter_handler const& fh
 #ifdef TORRENT_USE_OPENSSL
-		, ssl::context* ssl_ctx = nullptr
+		, ssl::context* ssl_ctx
 #endif
 		);
 
@@ -164,7 +165,6 @@ private:
 
 #ifdef TORRENT_USE_OPENSSL
 	ssl::context* m_ssl_ctx;
-	bool m_own_ssl_context;
 #endif
 
 #if TORRENT_USE_I2P
@@ -178,7 +178,6 @@ private:
 	http_filter_handler m_filter_handler;
 	deadline_timer m_timer;
 
-	time_duration m_read_timeout;
 	time_duration m_completion_timeout;
 
 	// the timer fires every 250 millisecond as long

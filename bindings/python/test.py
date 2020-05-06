@@ -32,6 +32,7 @@ class test_create_torrent(unittest.TestCase):
 
     def test_from_torrent_info(self):
         ti = lt.torrent_info('unordered.torrent')
+        print(ti.ssl_cert())
         ct = lt.create_torrent(ti)
         entry = ct.generate()
         content = lt.bencode(entry).strip()
@@ -41,6 +42,19 @@ class test_create_torrent(unittest.TestCase):
             print(file_content)
             print(entry)
             self.assertEqual(content, file_content)
+
+    def test_from_scratch(self):
+        fs = lt.file_storage()
+        fs.add_file('test/file1', 1000)
+        fs.add_file('test/file2', 2000)
+        ct = lt.create_torrent(fs)
+        ct.add_url_seed('foo')
+        ct.add_http_seed('bar')
+        ct.add_tracker('bar')
+        ct.set_root_cert('1234567890')
+        ct.add_collection('1337')
+        entry = ct.generate()
+        print(entry)
 
 
 class test_session_stats(unittest.TestCase):
@@ -73,6 +87,12 @@ class test_torrent_handle(unittest.TestCase):
             'ti': self.ti, 'save_path': os.getcwd(),
             'flags': lt.torrent_flags.default_flags})
 
+    def test_add_torrent_error(self):
+        self.ses = lt.session(settings)
+        self.ti = lt.torrent_info('url_seed_multi.torrent')
+        with self.assertRaises(RuntimeError):
+            self.ses.add_torrent({'ti': self.ti, 'save_path': os.getcwd(), 'info_hash': b'abababababababababab'})
+
     def test_torrent_handle(self):
         self.setup()
         self.assertEqual(self.h.get_file_priorities(), [4, 4])
@@ -93,6 +113,9 @@ class test_torrent_handle(unittest.TestCase):
         self.h.connect_peer(('127.0.0.2', 6881), source=4)
         self.h.connect_peer(('127.0.0.3', 6881), flags=2)
         self.h.connect_peer(('127.0.0.4', 6881), flags=2, source=4)
+
+        torrent_files = self.h.torrent_file()
+        print(torrent_files.map_file(0, 0, 0).piece)
 
         print(self.h.queue_position())
 
@@ -152,10 +175,16 @@ class test_torrent_handle(unittest.TestCase):
         # wait a bit until the endpoints list gets populated
         while len(self.h.trackers()[0]['endpoints']) == 0:
             time.sleep(0.1)
-        pickled_trackers = pickle.dumps(self.h.trackers())
+
+        trackers = self.h.trackers()
+        self.assertEqual(trackers[0]['url'], 'udp://tracker1.com')
+        # this is not necessarily 0, it could also be (EHOSTUNREACH) if the
+        # local machine doesn't support the address family
+        expect_value = trackers[0]['endpoints'][0]['last_error']['value']
+        pickled_trackers = pickle.dumps(trackers)
         unpickled_trackers = pickle.loads(pickled_trackers)
         self.assertEqual(unpickled_trackers[0]['url'], 'udp://tracker1.com')
-        self.assertEqual(unpickled_trackers[0]['endpoints'][0]['last_error']['value'], 0)
+        self.assertEqual(unpickled_trackers[0]['endpoints'][0]['last_error']['value'], expect_value)
 
     def test_file_status(self):
         self.setup()
@@ -682,6 +711,7 @@ class test_example_client(unittest.TestCase):
     def test_default_settings(self):
 
         default = lt.default_settings()
+        self.assertNotIn('', default)
         print(default)
 
 
@@ -710,6 +740,53 @@ class test_error_code(unittest.TestCase):
         self.assertEqual(lt.bdecode_category().name(), 'bdecode')
         self.assertEqual(lt.generic_category().name(), 'generic')
         self.assertEqual(lt.system_category().name(), 'system')
+
+
+class test_peer_info(unittest.TestCase):
+
+    def test_peer_info_members(self):
+
+        p = lt.peer_info()
+
+        print(p.client)
+        print(p.pieces)
+        print(p.pieces)
+        print(p.last_request)
+        print(p.last_active)
+        print(p.flags)
+        print(p.source)
+        print(p.pid)
+        print(p.downloading_piece_index)
+        print(p.ip)
+        print(p.local_endpoint)
+        print(p.read_state)
+        print(p.write_state)
+
+
+class test_dht_settings(unittest.TestCase):
+
+    def test_construct(self):
+
+        ds = lt.dht_settings()
+
+        print(ds.max_peers_reply)
+        print(ds.search_branching)
+        print(ds.max_fail_count)
+        print(ds.max_fail_count)
+        print(ds.max_torrents)
+        print(ds.max_dht_items)
+        print(ds.restrict_routing_ips)
+        print(ds.restrict_search_ips)
+        print(ds.max_torrent_search_reply)
+        print(ds.extended_routing_table)
+        print(ds.aggressive_lookups)
+        print(ds.privacy_lookups)
+        print(ds.enforce_node_id)
+        print(ds.ignore_dark_internet)
+        print(ds.block_timeout)
+        print(ds.block_ratelimit)
+        print(ds.read_only)
+        print(ds.item_lifetime)
 
 
 if __name__ == '__main__':

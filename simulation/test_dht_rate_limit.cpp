@@ -61,7 +61,7 @@ struct obs : dht::dht_observer
 		, address const& /* source */) override
 	{}
 	int get_listen_port(lt::aux::transport, lt::aux::listen_socket_handle const& s) override
-	{ return s.get()->udp_external_port; }
+	{ return s.get()->udp_external_port(); }
 	void get_peers(sha1_hash const&) override {}
 	void outgoing_get_peers(sha1_hash const& /* target */
 		, sha1_hash const& /* sent_target */, udp::endpoint const& /* ep */) override {}
@@ -104,7 +104,7 @@ TORRENT_TEST(dht_rate_limit)
 	asio::io_service dht_ios(sim, address_v4::from_string("40.30.20.10"));
 
 	// receiver (the DHT under test)
-	lt::udp_socket sock(dht_ios);
+	lt::udp_socket sock(dht_ios, lt::aux::listen_socket_handle{});
 	obs o;
 	auto ls = std::make_shared<lt::aux::listen_socket_t>();
 	ls->external_address.cast_vote(address_v4::from_string("40.30.20.10")
@@ -112,7 +112,7 @@ TORRENT_TEST(dht_rate_limit)
 	ls->local_endpoint = tcp::endpoint(address_v4::from_string("40.30.20.10"), 8888);
 	error_code ec;
 	sock.bind(udp::endpoint(address_v4::from_string("40.30.20.10"), 8888), ec);
-	dht::dht_settings dhtsett;
+	dht::settings dhtsett;
 	dhtsett.block_ratelimit = 100000; // disable the DOS blocker
 	dhtsett.ignore_dark_internet = false;
 	dhtsett.upload_rate_limit = 400;
@@ -230,7 +230,7 @@ TORRENT_TEST(dht_delete_socket)
 	sim::simulation sim(cfg);
 	sim::asio::io_service dht_ios(sim, lt::address_v4::from_string("40.30.20.10"));
 
-	lt::udp_socket sock(dht_ios);
+	lt::udp_socket sock(dht_ios, lt::aux::listen_socket_handle{});
 	error_code ec;
 	sock.bind(udp::endpoint(address_v4::from_string("40.30.20.10"), 8888), ec);
 
@@ -239,7 +239,7 @@ TORRENT_TEST(dht_delete_socket)
 	ls->external_address.cast_vote(address_v4::from_string("40.30.20.10")
 		, lt::aux::session_interface::source_dht, lt::address());
 	ls->local_endpoint = tcp::endpoint(address_v4::from_string("40.30.20.10"), 8888);
-	dht::dht_settings dhtsett;
+	dht::settings dhtsett;
 	counters cnt;
 	dht::dht_state state;
 	std::unique_ptr<lt::dht::dht_storage_interface> dht_storage(dht::dht_default_storage_constructor(dhtsett));

@@ -42,6 +42,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/http_connection.hpp"
 #include "libtorrent/resolver.hpp"
 #include "libtorrent/io.hpp"
+#include "libtorrent/random.hpp"
 
 #include "make_proxy_settings.hpp"
 
@@ -130,6 +131,11 @@ std::shared_ptr<http_connection> test_request(io_service& ios
 {
 	std::printf(" ===== TESTING: %s =====\n", url.c_str());
 
+#ifdef TORRENT_USE_OPENSSL
+	ssl::context ssl_ctx(ssl::context::sslv23_client);
+	ssl_ctx.set_verify_mode(ssl::context::verify_none);
+#endif
+
 	auto h = std::make_shared<http_connection>(ios
 		, res
 		, [=](error_code const& ec, http_parser const& parser
@@ -176,7 +182,12 @@ std::shared_ptr<http_connection> test_request(io_service& ios
 			++*connect_handler_called;
 			TEST_CHECK(c.socket().is_open());
 			std::printf("CONNECTED: %s\n", url.c_str());
-		});
+		}
+		, lt::http_filter_handler()
+#ifdef TORRENT_USE_OPENSSL
+		, &ssl_ctx
+#endif
+		);
 
 	h->get(url, seconds(1), 0, &ps, 5, "test/user-agent", boost::none
 		, resolver_flags{}, auth);
@@ -309,7 +320,7 @@ void run_test(lt::aux::proxy_settings ps, std::string url, int expect_size, int 
 	sim::http_proxy http_p(proxy_ios, 4445);
 
 	char data_buffer[4000];
-	std::generate(data_buffer, data_buffer + sizeof(data_buffer), &std::rand);
+	lt::aux::random_bytes(data_buffer);
 
 	std::vector<int> counters(num_counters, 0);
 
@@ -477,7 +488,7 @@ TORRENT_TEST(http_connection_timeout_server_stalls)
 	http_ipv6.register_stall_handler("/timeout");
 
 	char data_buffer[4000];
-	std::generate(data_buffer, data_buffer + sizeof(data_buffer), &std::rand);
+	lt::aux::random_bytes(data_buffer);
 
 	int connect_counter = 0;
 	int handler_counter = 0;
@@ -534,7 +545,7 @@ TORRENT_TEST(http_connection_timeout_server_does_not_accept)
 	error_condition timed_out(boost::system::errc::timed_out, boost::system::generic_category());
 
 	char data_buffer[4000];
-	std::generate(data_buffer, data_buffer + sizeof(data_buffer), &std::rand);
+	lt::aux::random_bytes(data_buffer);
 
 	auto c = test_request(client_ios, resolver
 		, "http://dual-stack.test-hostname.com:8080/timeout_server_does_not_accept", data_buffer, -1, -1
@@ -563,7 +574,7 @@ void test_proxy_failure(lt::settings_pack::proxy_type_t proxy_type)
 	lt::aux::proxy_settings ps = make_proxy_settings(proxy_type);
 
 	char data_buffer[4000];
-	std::generate(data_buffer, data_buffer + sizeof(data_buffer), &std::rand);
+	lt::aux::random_bytes(data_buffer);
 
 	http.register_handler("/test_file"
 		, [&data_buffer](std::string method, std::string req
@@ -629,14 +640,25 @@ TORRENT_TEST(http_connection_ssl_proxy)
 			return sim::send_response(403, "Not supported", 1337);
 		});
 
+#ifdef TORRENT_USE_OPENSSL
+	lt::ssl::context ssl_ctx(ssl::context::sslv23_client);
+	ssl_ctx.set_verify_mode(ssl::context::verify_none);
+#endif
+
 	auto h = std::make_shared<http_connection>(client_ios
 		, res
 		, [&client_counter](error_code const& ec, http_parser const&
-		, span<char const>, http_connection&)
+			, span<char const>, http_connection&)
 		{
 			client_counter++;
 			TEST_EQUAL(ec, boost::asio::error::operation_not_supported);
-		});
+		}
+		, true, 1024*1024, lt::http_connect_handler()
+		, http_filter_handler()
+#ifdef TORRENT_USE_OPENSSL
+		, &ssl_ctx
+#endif
+		);
 
 	h->start("10.0.0.2", 8080, seconds(1), 0, &ps, true /*ssl*/);
 

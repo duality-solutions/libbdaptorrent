@@ -19,8 +19,8 @@ test_programs = \
   test_receive_buffer        \
   test_resume                \
   test_read_resume           \
-  test_ssl                   \
   test_stack_allocator       \
+  test_ssl                   \
   test_storage               \
   test_time_critical         \
   test_torrent               \
@@ -108,6 +108,7 @@ TEST_TORRENTS = \
   slash_path3.torrent \
   string.torrent \
   symlink1.torrent \
+  symlink2.torrent \
   symlink_zero_size.torrent \
   unaligned_pieces.torrent \
   unordered.torrent \
@@ -118,7 +119,9 @@ TEST_TORRENTS = \
   url_seed_multi.torrent \
   url_seed_multi_space.torrent \
   url_seed_multi_space_nolist.torrent \
-  whitespace_url.torrent
+  url_seed_multi_single_file.torrent \
+  whitespace_url.torrent \
+  overlapping_symlinks.torrent
 
 MUTABLE_TEST_TORRENTS = \
   test1.torrent \
@@ -278,7 +281,6 @@ test_alloca_SOURCES = test_alloca.cpp
 LDADD = libtest.la $(top_builddir)/src/libtorrent-rasterbar.la
 
 #AM_CXXFLAGS=-ftemplate-depth-50 -I$(top_srcdir)/include -I$(top_srcdir)/include/libtorrent @DEBUGFLAGS@ @PTHREAD_CFLAGS@
-AM_CPPFLAGS=-ftemplate-depth-50 -I$(top_srcdir)/include @DEBUGFLAGS@ @OPENSSL_INCLUDES@
-
+AM_CPPFLAGS=-ftemplate-depth-50 @DEBUGFLAGS@
 AM_LDFLAGS=@BOOST_SYSTEM_LIB@ @PTHREAD_LIBS@ @OPENSSL_LDFLAGS@ @OPENSSL_LIBS@
-
+DEFAULT_INCLUDES = -I$(top_srcdir)/include @OPENSSL_INCLUDES@

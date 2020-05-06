@@ -32,6 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "test.hpp"
 #include "libtorrent/aux_/session_impl.hpp"
+#include "libtorrent/string_util.hpp"
 
 using namespace lt;
 
@@ -57,26 +58,61 @@ namespace
 		TEST_EQUAL(e1.device, dev);
 	}
 
-	ip_interface ifc(char const* ip, char const* device)
+	ip_interface ifc(char const* ip, char const* device, char const* netmask = nullptr)
 	{
 		ip_interface ipi;
 		ipi.interface_address = address::from_string(ip);
+		if (netmask) ipi.netmask = address::from_string(netmask);
 		strncpy(ipi.name, device, sizeof(ipi.name));
 		return ipi;
+	}
+
+	ip_route rt(char const* ip, char const* device, char const* gateway)
+	{
+		ip_route ret;
+		ret.destination = address::from_string(ip);
+		ret.gateway = address::from_string(gateway);
+		std::strncpy(ret.name, device, sizeof(ret.name));
+		ret.name[sizeof(ret.name) - 1] = '\0';
+		return ret;
+	}
+
+	aux::listen_endpoint_t ep(char const* ip, int port
+		, tp ssl, aux::listen_socket_flags_t const flags)
+	{
+		return aux::listen_endpoint_t(address::from_string(ip), port, std::string{}
+			, ssl, flags);
 	}
 
 	aux::listen_endpoint_t ep(char const* ip, int port
 		, tp ssl = tp::plaintext
 		, std::string device = {})
 	{
-		return aux::listen_endpoint_t(address::from_string(ip), port, device, ssl);
+		return aux::listen_endpoint_t(address::from_string(ip), port, device, ssl
+			, aux::listen_socket_t::accept_incoming);
 	}
 
 	aux::listen_endpoint_t ep(char const* ip, int port
 		, std::string device
 		, tp ssl = tp::plaintext)
 	{
-		return aux::listen_endpoint_t(address::from_string(ip), port, device, ssl);
+		return aux::listen_endpoint_t(address::from_string(ip), port, device, ssl
+			, aux::listen_socket_t::accept_incoming);
+	}
+
+	aux::listen_endpoint_t ep(char const* ip, int port
+		, std::string device
+		, aux::listen_socket_flags_t const flags)
+	{
+		return aux::listen_endpoint_t(address::from_string(ip), port, device
+			, tp::plaintext, flags);
+	}
+
+	aux::listen_endpoint_t ep(char const* ip, int port
+		, aux::listen_socket_flags_t const flags)
+	{
+		return aux::listen_endpoint_t(address::from_string(ip), port, std::string{}
+			, tp::plaintext, flags);
 	}
 
 	std::shared_ptr<aux::listen_socket_t> sock(char const* ip, int const port
@@ -227,41 +263,115 @@ TORRENT_TEST(partition_listen_sockets_op_ports)
 	TEST_EQUAL(eps.size(), 2);
 }
 
+TORRENT_TEST(expand_devices)
+{
+	std::vector<ip_interface> const ifs = {
+		ifc("127.0.0.1", "lo", "255.0.0.0")
+		, ifc("192.168.1.2", "eth0", "255.255.255.0")
+		, ifc("24.172.48.90", "eth1", "255.255.255.0")
+		, ifc("::1", "lo", "ffff:ffff:ffff:ffff::")
+		, ifc("fe80::d250:99ff:fe0c:9b74", "eth0", "ffff:ffff:ffff:ffff::")
+		, ifc("2601:646:c600:a3:d250:99ff:fe0c:9b74", "eth0", "ffff:ffff:ffff:ffff::")
+	};
+
+	std::vector<aux::listen_endpoint_t> eps = {
+		{
+			address::from_string("127.0.0.1"),
+			6881, // port
+			"", // device
+			aux::transport::plaintext,
+			aux::listen_socket_flags_t{} },
+		{
+			address::from_string("192.168.1.2"),
+			6881, // port
+			"", // device
+			aux::transport::plaintext,
+			aux::listen_socket_flags_t{} }
+	};
+
+	expand_devices(ifs, eps);
+
+	TEST_CHECK((eps == std::vector<aux::listen_endpoint_t>{
+		{
+			address::from_string("127.0.0.1"),
+			6881, // port
+			"lo", // device
+			aux::transport::plaintext,
+			aux::listen_socket_flags_t{},
+			address::from_string("255.0.0.0") },
+		{
+			address::from_string("192.168.1.2"),
+			6881, // port
+			"eth0", // device
+			aux::transport::plaintext,
+			aux::listen_socket_flags_t{},
+			address::from_string("255.255.255.0") },
+		}));
+}
+
 TORRENT_TEST(expand_unspecified)
 {
+	// this causes us to only expand IPv6 addresses on eth0
+	std::vector<ip_route> const routes = {
+		rt("0.0.0.0", "eth0", "1.2.3.4"),
+		rt("::", "eth0", "1234:5678::1"),
+	};
+
 	std::vector<ip_interface> const ifs = {
 		ifc("127.0.0.1", "lo")
 		, ifc("192.168.1.2", "eth0")
 		, ifc("24.172.48.90", "eth1")
 		, ifc("::1", "lo")
 		, ifc("fe80::d250:99ff:fe0c:9b74", "eth0")
-		, ifc( "2601:646:c600:a3:d250:99ff:fe0c:9b74", "eth0")
+		, ifc("2601:646:c600:a3:d250:99ff:fe0c:9b74", "eth0")
 	};
+
+	aux::listen_socket_flags_t const global = aux::listen_socket_t::accept_incoming
+		| aux::listen_socket_t::was_expanded;
+	aux::listen_socket_flags_t const local = aux::listen_socket_t::accept_incoming
+		| aux::listen_socket_t::was_expanded
+		| aux::listen_socket_t::local_network;
 
 	auto v4_nossl      = ep("0.0.0.0", 6881);
 	auto v4_ssl        = ep("0.0.0.0", 6882, tp::ssl);
-	auto v6_unsp_nossl = ep("::", 6883);
-	auto v6_unsp_ssl   = ep("::", 6884, tp::ssl);
-	auto v6_ll_nossl   = ep("fe80::d250:99ff:fe0c:9b74", 6883);
-	auto v6_ll_ssl     = ep("fe80::d250:99ff:fe0c:9b74", 6884, tp::ssl);
-	auto v6_g_nossl    = ep("2601:646:c600:a3:d250:99ff:fe0c:9b74", 6883);
-	auto v6_g_ssl      = ep("2601:646:c600:a3:d250:99ff:fe0c:9b74", 6884, tp::ssl);
+	auto v4_loopb_nossl= ep("127.0.0.1", 6881, local);
+	auto v4_loopb_ssl  = ep("127.0.0.1", 6882, tp::ssl, local);
+	auto v4_g1_nossl   = ep("192.168.1.2", 6881, global);
+	auto v4_g1_ssl     = ep("192.168.1.2", 6882, tp::ssl, global);
+	auto v4_g2_nossl   = ep("24.172.48.90", 6881, global);
+	auto v4_g2_ssl     = ep("24.172.48.90", 6882, tp::ssl, global);
+	auto v6_unsp_nossl = ep("::", 6883, global);
+	auto v6_unsp_ssl   = ep("::", 6884, tp::ssl, global);
+	auto v6_ll_nossl   = ep("fe80::d250:99ff:fe0c:9b74", 6883, local);
+	auto v6_ll_ssl     = ep("fe80::d250:99ff:fe0c:9b74", 6884, tp::ssl, local);
+	auto v6_g_nossl    = ep("2601:646:c600:a3:d250:99ff:fe0c:9b74", 6883, global);
+	auto v6_g_ssl      = ep("2601:646:c600:a3:d250:99ff:fe0c:9b74", 6884, tp::ssl, global);
+	auto v6_loopb_ssl  = ep("::1", 6884, tp::ssl, local);
+	auto v6_loopb_nossl= ep("::1", 6883, local);
 
 	std::vector<aux::listen_endpoint_t> eps = {
 		v4_nossl, v4_ssl, v6_unsp_nossl, v6_unsp_ssl
 	};
 
-	aux::expand_unspecified_address(ifs, eps);
+	aux::expand_unspecified_address(ifs, routes, eps);
 
-	TEST_EQUAL(eps.size(), 6);
-	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_nossl) == 1);
-	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_ssl) == 1);
+	TEST_EQUAL(eps.size(), 12);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_g1_nossl) == 1);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_g1_ssl) == 1);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_g2_nossl) == 1);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_g2_ssl) == 1);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_ll_nossl) == 1);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_ll_ssl) == 1);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_g_nossl) == 1);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_g_ssl) == 1);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_loopb_ssl) == 1);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_loopb_nossl) == 1);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_loopb_ssl) == 1);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_loopb_nossl) == 1);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_unsp_nossl) == 0);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_unsp_ssl) == 0);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_nossl) == 0);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v4_ssl) == 0);
 
 	// test that a user configured endpoint is not duplicated
 	auto v6_g_nossl_dev = ep("2601:646:c600:a3:d250:99ff:fe0c:9b74", 6883, "eth0");
@@ -270,11 +380,61 @@ TORRENT_TEST(expand_unspecified)
 	eps.push_back(v6_unsp_nossl);
 	eps.push_back(v6_g_nossl_dev);
 
-	aux::expand_unspecified_address(ifs, eps);
+	aux::expand_unspecified_address(ifs, routes, eps);
 
-	TEST_EQUAL(eps.size(), 2);
+	TEST_EQUAL(eps.size(), 3);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_ll_nossl) == 1);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_g_nossl) == 0);
+	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_loopb_nossl) == 1);
 	TEST_CHECK(std::count(eps.begin(), eps.end(), v6_g_nossl_dev) == 1);
+}
+
+namespace {
+std::vector<aux::listen_endpoint_t> to_endpoint(listen_interface_t const& iface
+	, span<ip_interface const> const ifs)
+{
+	std::vector<aux::listen_endpoint_t> ret;
+	interface_to_endpoints(iface, aux::listen_socket_t::accept_incoming, ifs, ret);
+	return ret;
+}
+
+using eps = std::vector<aux::listen_endpoint_t>;
+
+listen_interface_t ift(char const* dev, int const port, bool const ssl = false
+	, bool const local = false)
+{
+	return {std::string(dev), port, ssl, local};
+}
+}
+using ls = aux::listen_socket_t;
+
+TORRENT_TEST(interface_to_endpoint)
+{
+	TEST_CHECK(to_endpoint(ift("10.0.1.1", 6881), {}) == eps{ep("10.0.1.1", 6881)});
+
+
+	std::vector<ip_interface> const ifs = {
+		// this is a global IPv4 address, not a private network
+		ifc("185.0.1.2", "eth0")
+		, ifc("192.168.2.2", "eth1")
+		, ifc("fe80::d250:99ff:fe0c:9b74", "eth0")
+		// this is a global IPv6 address, not a private network
+		, ifc("2601:646:c600:a3:d250:99ff:fe0c:9b74", "eth1")
+	};
+
+	TEST_CHECK((to_endpoint(ift("eth0", 1234), ifs)
+		== eps{ep("185.0.1.2", 1234, "eth0", ls::was_expanded | ls::accept_incoming)
+		, ep("fe80::d250:99ff:fe0c:9b74", 1234, "eth0", ls::was_expanded | ls::accept_incoming | ls::local_network)}));
+
+	TEST_CHECK((to_endpoint(ift("eth1", 1234), ifs)
+		== eps{ep("192.168.2.2", 1234, "eth1", ls::was_expanded | ls::accept_incoming)
+		, ep("2601:646:c600:a3:d250:99ff:fe0c:9b74", 1234, "eth1", ls::was_expanded | ls::accept_incoming)}));
+
+	std::vector<ip_interface> const ifs2 = {
+		ifc("10.0.1.1", "eth0")
+	};
+
+	TEST_CHECK((to_endpoint(ift("eth0", 1234), ifs2)
+		== eps{ep("10.0.1.1", 1234, "eth0", ls::was_expanded | ls::accept_incoming)}));
 }
 

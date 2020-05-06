@@ -5,7 +5,7 @@
 
 AC_PREREQ([2.63])
 
-AC_INIT([libtorrent-rasterbar],[1.2.0],[arvid@libtorrent.org],
+AC_INIT([libtorrent-rasterbar],[1.2.6],[arvid@libtorrent.org],
         [libtorrent-rasterbar],[http://www.libtorrent.org])
 AC_CONFIG_SRCDIR([src/torrent.cpp])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -142,7 +142,7 @@ AC_CACHE_CHECK([for __attribute__((visibility("hidden")))],
 AS_ECHO
 AS_ECHO "Checking for boost libraries:"
 
-AX_BOOST_BASE([1.54])
+AX_BOOST_BASE([1.58])
 
 AX_CXX_COMPILE_STDCXX_11([noext], [mandatory])
 

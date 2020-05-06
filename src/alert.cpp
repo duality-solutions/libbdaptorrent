@@ -587,7 +587,7 @@ namespace libtorrent {
 	{
 		char ret[200];
 		std::snprintf(ret, sizeof(ret), "%s peer dropped block ( piece: %d block: %d)"
-			, torrent_alert::message().c_str(), static_cast<int>(piece_index), block_index);
+			, peer_alert::message().c_str(), static_cast<int>(piece_index), block_index);
 		return ret;
 	}
 
@@ -605,7 +605,7 @@ namespace libtorrent {
 	{
 		char ret[200];
 		std::snprintf(ret, sizeof(ret), "%s peer timed out request ( piece: %d block: %d)"
-			, torrent_alert::message().c_str(), static_cast<int>(piece_index), block_index);
+			, peer_alert::message().c_str(), static_cast<int>(piece_index), block_index);
 		return ret;
 	}
 
@@ -623,7 +623,7 @@ namespace libtorrent {
 	{
 		char ret[200];
 		std::snprintf(ret, sizeof(ret), "%s block finished downloading (piece: %d block: %d)"
-			, torrent_alert::message().c_str(), static_cast<int>(piece_index), block_index);
+			, peer_alert::message().c_str(), static_cast<int>(piece_index), block_index);
 		return ret;
 	}
 
@@ -644,7 +644,7 @@ namespace libtorrent {
 	{
 		char ret[200];
 		std::snprintf(ret, sizeof(ret), "%s requested block (piece: %d block: %d)"
-			, torrent_alert::message().c_str(), static_cast<int>(piece_index), block_index);
+			, peer_alert::message().c_str(), static_cast<int>(piece_index), block_index);
 		return ret;
 	}
 
@@ -662,7 +662,7 @@ namespace libtorrent {
 	{
 		char ret[200];
 		std::snprintf(ret, sizeof(ret), "%s received block not in download queue (piece: %d block: %d)"
-			, torrent_alert::message().c_str(), static_cast<int>(piece_index), block_index);
+			, peer_alert::message().c_str(), static_cast<int>(piece_index), block_index);
 		return ret;
 	}
 
@@ -894,7 +894,11 @@ namespace {
 			case o::partfile_read: return -1;
 			case o::partfile_write: return -1;
 			case o::hostname_lookup: return -1;
-		};
+			case o::symlink: return -1;
+			case o::handshake: return -1;
+			case o::sock_option: return -1;
+			case o::enum_route: return -1;
+		}
 		return -1;
 	}
 #ifdef __GNUC__
@@ -1142,7 +1146,7 @@ namespace {
 
 	std::string portmap_log_alert::message() const
 	{
-		char ret[600];
+		char ret[1024];
 		std::snprintf(ret, sizeof(ret), "%s: %s"
 			, nat_type_str[static_cast<int>(map_transport)]
 			, log_message());
@@ -1558,7 +1562,11 @@ namespace {
 			"partfile_move",
 			"partfile_read",
 			"partfile_write",
-			"hostname_lookup"
+			"hostname_lookup",
+			"symlink",
+			"handshake",
+			"sock_option",
+			"enum_route"
 		};
 
 		int const idx = static_cast<int>(op);
@@ -1678,7 +1686,7 @@ namespace {
 	}
 
 	// TODO: 2 the salt here is allocated on the heap. It would be nice to
-	// allocate in in the stack_allocator
+	// allocate in the stack_allocator
 	dht_mutable_item_alert::dht_mutable_item_alert(aux::stack_allocator&
 		, std::array<char, 32> const& k
 		, std::array<char, 64> const& sig
@@ -1860,7 +1868,7 @@ namespace {
 	{
 		static char const* const mode[] =
 		{ "<==", "==>", "<<<", ">>>", "***" };
-		return torrent_alert::message() + " [" + print_endpoint(endpoint) + "] "
+		return peer_alert::message() + " [" + print_endpoint(endpoint) + "] "
 			+ mode[direction] + " " + event_type + " [ " + log_message() + " ]";
 	}
 
@@ -1871,7 +1879,7 @@ namespace {
 
 	std::string lsd_error_alert::message() const
 	{
-		return "Local Service Discovery error: " + convert_from_native(error.message());
+		return "Local Service Discovery startup error: " + convert_from_native(error.message());
 	}
 
 #if TORRENT_ABI_VERSION == 1
@@ -2256,6 +2264,7 @@ namespace {
 	constexpr picker_flags_t picker_log_alert::backup1;
 	constexpr picker_flags_t picker_log_alert::backup2;
 	constexpr picker_flags_t picker_log_alert::end_game;
+	constexpr picker_flags_t picker_log_alert::extent_affinity;
 
 	std::string picker_log_alert::message() const
 	{
@@ -2276,7 +2285,8 @@ namespace {
 			"reverse_sequential ",
 			"backup1 ",
 			"backup2 ",
-			"end_game "
+			"end_game ",
+			"extent_affinity ",
 		};
 
 		std::string ret = peer_alert::message();
@@ -2488,7 +2498,7 @@ namespace {
 		aux::vector<sha1_hash> samples;
 		samples.resize(m_num_samples);
 
-		const char *ptr = m_alloc.get().ptr(m_samples_idx);
+		char const* ptr = m_alloc.get().ptr(m_samples_idx);
 		std::memcpy(samples.data(), ptr, samples.size() * 20);
 
 		return std::move(samples);
@@ -2520,7 +2530,7 @@ namespace {
 	{
 		char ret[200];
 		snprintf(ret, sizeof(ret), "%s block uploaded to a peer (piece: %d block: %d)"
-			, torrent_alert::message().c_str(), static_cast<int>(piece_index), block_index);
+			, peer_alert::message().c_str(), static_cast<int>(piece_index), block_index);
 		return ret;
 	}
 
@@ -2578,7 +2588,7 @@ namespace {
 		"dht_pkt", "dht_get_peers_reply", "dht_direct_response",
 		"picker_log", "session_error", "dht_live_nodes",
 		"session_stats_header", "dht_sample_infohashes",
-		"block_uploaded", "alerts_dropped"
+		"block_uploaded", "alerts_dropped", "socks5"
 		}};
 
 		TORRENT_ASSERT(alert_type >= 0);
@@ -2599,6 +2609,21 @@ namespace {
 		}
 
 		return ret;
+	}
+
+	socks5_alert::socks5_alert(aux::stack_allocator&
+		, tcp::endpoint const& ep, operation_t operation, error_code const& ec)
+		: error(ec)
+		, op(operation)
+		, ip(ep)
+	{}
+
+	std::string socks5_alert::message() const
+	{
+		char buf[512];
+		std::snprintf(buf, sizeof(buf), "SOCKS5 error. op: %s ec: %s ep: %s"
+			, operation_name(op), error.message().c_str(), print_endpoint(ip).c_str());
+		return buf;
 	}
 
 	// this will no longer be necessary in C++17
@@ -2689,6 +2714,7 @@ namespace {
 	constexpr alert_category_t dht_sample_infohashes_alert::static_category;
 	constexpr alert_category_t block_uploaded_alert::static_category;
 	constexpr alert_category_t alerts_dropped_alert::static_category;
+	constexpr alert_category_t socks5_alert::static_category;
 #if TORRENT_ABI_VERSION == 1
 	constexpr alert_category_t anonymous_mode_alert::static_category;
 	constexpr alert_category_t mmap_cache_alert::static_category;

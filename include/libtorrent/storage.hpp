@@ -67,64 +67,11 @@ POSSIBILITY OF SUCH DAMAGE.
 // ``std::map``, i.e. in RAM. It's not necessarily very useful in practice, but
 // illustrates the basics of implementing a custom storage.
 //
-// .. code:: c++
-//
-//	struct temp_storage : storage_interface
-//	{
-//		temp_storage(file_storage const& fs) : storage_interface(fs) {}
-//		bool initialize(storage_error& se) override { return false; }
-//		bool has_any_file() override { return false; }
-//		int read(char* buf, int piece, int offset, int size) override
-//		{
-//			std::map<int, std::vector<char>>::const_iterator i = m_file_data.find(piece);
-//			if (i == m_file_data.end()) return 0;
-//			int available = i->second.size() - offset;
-//			if (available <= 0) return 0;
-//			if (available > size) available = size;
-//			memcpy(buf, &i->second[offset], available);
-//			return available;
-//		}
-//		int write(const char* buf, int piece, int offset, int size) override
-//		{
-//			std::vector<char>& data = m_file_data[piece];
-//			if (data.size() < offset + size) data.resize(offset + size);
-//			std::memcpy(&data[offset], buf, size);
-//			return size;
-//		}
-//		bool rename_file(file_index_t file, std::string const& new_name) override
-//		{ assert(false); return false; }
-//		status_t move_storage(std::string const& save_path) override { return false; }
-//		bool verify_resume_data(add_torrent_params const& rd
-//			, std::vector<std::string> const* links
-//			, storage_error& error) override { return false; }
-//		std::int64_t physical_offset(int piece, int offset) override
-//		{ return piece * files().piece_length() + offset; };
-//		sha1_hash hash_for_slot(int piece, partial_hash& ph, int piece_size) override
-//		{
-//			int left = piece_size - ph.offset;
-//			assert(left >= 0);
-//			if (left > 0)
-//			{
-//				std::vector<char>& data = m_file_data[piece];
-//				// if there are padding files, those blocks will be considered
-//				// completed even though they haven't been written to the storage.
-//				// in this case, just extend the piece buffer to its full size
-//				// and fill it with zeros.
-//				if (data.size() < piece_size) data.resize(piece_size, 0);
-//				ph.h.update(&data[ph.offset], left);
-//			}
-//			return ph.h.final();
-//		}
-//		bool release_files() override { return false; }
-//		bool delete_files() override { return false; }
-//
-//		std::map<int, std::vector<char>> m_file_data;
-//	};
-//
-//	storage_interface* temp_storage_constructor(storage_params const& params)
-//	{
-//		return new temp_storage(*params.files);
-//	}
+// .. include:: ../examples/custom_storage.cpp
+//	:code: c++
+//	:tab-width: 2
+//	:start-after: -- example begin
+//	:end-before: // -- example end
 namespace libtorrent {
 
 	namespace aux { struct session_settings; }
@@ -143,7 +90,7 @@ namespace libtorrent {
 	// before it's written to disk, and decrypting it when it's read again.
 	//
 	// The storage interface is based on pieces. Every read and write operation
-	// happens in the piece-space. Each piece fits 'piece_size' number
+	// happens in the piece-space. Each piece fits ``piece_size`` number
 	// of bytes. All access is done by writing and reading whole or partial
 	// pieces.
 	//
@@ -201,12 +148,6 @@ namespace libtorrent {
 		// (i.e one has to seek first and then read), only one disk thread is
 		// used.
 		//
-		// Every buffer in ``bufs`` can be assumed to be page aligned and be of a
-		// page aligned size, except for the last buffer of the torrent. The
-		// allocated buffer can be assumed to fit a fully page aligned number of
-		// bytes though. This is useful when reading and writing the last piece
-		// of a file in unbuffered mode.
-		//
 		// The ``offset`` is aligned to 16 kiB boundaries  *most of the time*, but
 		// there are rare exceptions when it's not. Specifically if the read
 		// cache is disabled/or full and a peer requests unaligned data. Most
@@ -215,6 +156,8 @@ namespace libtorrent {
 		// The number of bytes read or written should be returned, or -1 on
 		// error. If there's an error, the ``storage_error`` must be filled out
 		// to represent the error that occurred.
+		//
+		// For possible values of ``flags``, see open_mode_t.
 		virtual int readv(span<iovec_t const> bufs
 			, piece_index_t piece, int offset, open_mode_t flags, storage_error& ec) = 0;
 		virtual int writev(span<iovec_t const> bufs
@@ -336,7 +279,7 @@ namespace libtorrent {
 		virtual ~storage_interface() {}
 
 		// initialized in disk_io_thread::perform_async_job
-		aux::session_settings* m_settings = nullptr;
+		aux::session_settings const* m_settings = nullptr;
 
 		storage_index_t storage_index() const { return m_storage_index; }
 		void set_storage_index(storage_index_t st) { m_storage_index = st; }

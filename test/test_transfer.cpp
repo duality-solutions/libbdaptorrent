@@ -32,7 +32,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "libtorrent/session.hpp"
 #include "libtorrent/session_settings.hpp"
-#include "libtorrent/hasher.hpp"
 #include "libtorrent/alert_types.hpp"
 #include "libtorrent/bencode.hpp"
 #include "libtorrent/time.hpp"
@@ -60,7 +59,8 @@ int peer_disconnects = 0;
 
 bool on_alert(alert const* a)
 {
-	if (alert_cast<peer_disconnected_alert>(a))
+	auto const* const pd = alert_cast<peer_disconnected_alert>(a);
+	if (pd && pd->error != make_error_code(errors::self_connection))
 		++peer_disconnects;
 	else if (alert_cast<peer_error_alert>(a))
 		++peer_disconnects;
@@ -287,7 +287,8 @@ void test_transfer(int proxy_type, settings_pack const& sett
 			print_ses_rate(i / 10.f, &st1, &st2);
 		}
 
-		std::cout << "progress: " << st2.progress << "\n";
+		std::cout << "st1-progress: " << st1.progress << " " << st1.state << "\n";
+		std::cout << "st2-progress: " << st2.progress << " " << st2.state << "\n";
 		if ((flags & move_storage) && st2.progress > 0.1f)
 		{
 			flags &= ~move_storage;
@@ -520,3 +521,12 @@ TORRENT_TEST(allocate)
 	cleanup();
 }
 
+TORRENT_TEST(suggest)
+{
+	using namespace lt;
+	settings_pack p;
+	p.set_int(settings_pack::suggest_mode, settings_pack::suggest_read_cache);
+	test_transfer(0, p);
+
+	cleanup();
+}

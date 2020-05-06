@@ -90,6 +90,7 @@ namespace aux {
 #if (__cplusplus > 201103) || (defined _MSC_VER && _MSC_VER >= 1900)
 		// this enables us to compare a string_view against the std::string that's
 		// held by the std::map
+		// is_transparent was introduced in C++14
 		struct strview_less
 		{
 			using is_transparent = std::true_type;
@@ -339,6 +340,7 @@ namespace aux {
 		mutable std::uint8_t m_type_queried:1;
 	};
 
+	// hidden
 	TORRENT_EXPORT bool operator==(entry const& lhs, entry const& rhs);
 	inline bool operator!=(entry const& lhs, entry const& rhs) { return !(lhs == rhs); }
 

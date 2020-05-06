@@ -164,9 +164,9 @@ LONG WINAPI seh_exception_handler(LPEXCEPTION_POINTERS p)
 	exit(code);
 }
 
-#else
+#endif
 
-void TORRENT_NO_RETURN sig_handler(int sig)
+[[noreturn]] void sig_handler(int sig)
 {
 	char stack_text[10000];
 
@@ -197,16 +197,30 @@ void TORRENT_NO_RETURN sig_handler(int sig)
 		SIG(SIGSYS);
 #endif
 #undef SIG
-	};
-	std::printf("signal: (%d) %s caught:\n%s\n"
-		, sig, name, stack_text);
+	}
+	std::printf("signal: (%d) %s caught:\n%s\n", sig, name, stack_text);
 
 	output_test_log_to_terminal();
 
-	exit(128 + sig);
+	std::exit(128 + sig);
 }
 
-#endif // _WIN32
+[[noreturn]] void term_handler()
+{
+	char stack_text[10000];
+#if TORRENT_USE_ASSERTS \
+	|| defined TORRENT_ASIO_DEBUGGING \
+	|| defined TORRENT_PROFILE_CALLS \
+	|| defined TORRENT_DEBUG_BUFFERS
+	print_backtrace(stack_text, sizeof(stack_text), 30);
+#elif defined __FUNCTION__
+	strcpy(stack_text, __FUNCTION__);
+#else
+	strcpy(stack_text, "<stack traces disabled>");
+#endif
+	std::printf("\n\nterminate called:\n%s\n\n\n", stack_text);
+	std::exit(-1);
+}
 
 void print_usage(char const* executable)
 {
@@ -246,7 +260,7 @@ void change_directory(std::string const& f, error_code& ec)
 
 struct unit_directory_guard
 {
-	std::string dir;
+	explicit unit_directory_guard(std::string d) : dir(std::move(d)) {}
 	unit_directory_guard(unit_directory_guard const&) = delete;
 	unit_directory_guard& operator=(unit_directory_guard const&) = delete;
 	~unit_directory_guard()
@@ -273,6 +287,8 @@ struct unit_directory_guard
 #endif
 		if (ec) std::cerr << "Failed to remove unit test directory: " << ec.message() << "\n";
 	}
+private:
+	std::string dir;
 };
 
 void EXPORT reset_output()
@@ -370,7 +386,9 @@ int EXPORT main(int argc, char const* argv[])
 	_CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
 #endif
 
-#else
+#endif
+
+	std::set_terminate(term_handler);
 
 	signal(SIGSEGV, &sig_handler);
 #ifdef SIGBUS
@@ -383,8 +401,6 @@ int EXPORT main(int argc, char const* argv[])
 #ifdef SIGSYS
 	signal(SIGSYS, &sig_handler);
 #endif
-
-#endif // _WIN32
 
 	int process_id = -1;
 #ifdef _WIN32
@@ -439,7 +455,25 @@ int EXPORT main(int argc, char const* argv[])
 			fflush(stdout);
 			fflush(stderr);
 
+#ifdef TORRENT_MINGW
+			// mingw has a buggy tmpfile() and tmpname() that needs a . prepended
+			// to it (or some other directory)
+			char temp_name[512];
+			FILE* f = nullptr;
+			if (tmpnam_s(temp_name + 1, sizeof(temp_name) - 1) == 0)
+			{
+				temp_name[0] = '.';
+				std::printf("using temporary filename %s\n", temp_name);
+				f = fopen(temp_name, "wb+");
+			}
+			else
+			{
+				std::printf("failed to generate filename for redirecting "
+					"output: (%d) %s\n", errno, strerror(errno));
+			}
+#else
 			FILE* f = tmpfile();
+#endif
 			if (f != nullptr)
 			{
 				int ret1 = 0;

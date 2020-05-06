@@ -32,7 +32,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 #include "libtorrent/session.hpp"
-#include "libtorrent/hex.hpp" // for from_hex
 #include "libtorrent/alert_types.hpp"
 #include "libtorrent/bencode.hpp" // for bencode()
 #include "libtorrent/kademlia/item.hpp" // for sign_mutable_item
@@ -49,10 +48,6 @@ using namespace lt;
 using namespace lt::dht;
 using namespace std::placeholders;
 
-// TODO: don't use internal functions to libtorrent
-using lt::aux::from_hex;
-using lt::aux::to_hex;
-
 #ifdef TORRENT_DISABLE_DHT
 
 int main(int argc, char* argv[])
@@ -62,6 +57,43 @@ int main(int argc, char* argv[])
 }
 
 #else
+
+std::string to_hex(lt::span<char const> key)
+{
+	std::string out;
+	for (auto const b : key)
+	{
+		char buf[20];
+		std::snprintf(buf, sizeof(3), "%02x", static_cast<unsigned char>(b));
+		out += (char*)buf;
+	}
+	return out;
+}
+
+int hex_to_int(char in)
+{
+	if (in >= '0' && in <= '9') return int(in) - '0';
+	if (in >= 'A' && in <= 'F') return int(in) - 'A' + 10;
+	if (in >= 'a' && in <= 'f') return int(in) - 'a' + 10;
+	return -1;
+}
+
+bool from_hex(span<char const> in, span<char> out)
+{
+	if (in.size() != out.size() * 2) return false;
+	auto o = out.begin();
+	for (auto i = in.begin(); i != in.end(); ++i, ++o)
+	{
+		int const t1 = hex_to_int(*i);
+		if (t1 == -1) return false;
+		++i;
+		if (i == in.end()) return false;
+		int const t2 = hex_to_int(*i);
+		if (t2 == -1) return false;
+		*o = (t1 << 4) | (t2 & 0xf);
+	}
+	return true;
+}
 
 namespace {
 void usage()
@@ -76,10 +108,12 @@ void usage()
 		"                            the specified file\n"
 		"dump-key <key-file>       - dump ed25519 keypair from the specified key\n"
 		"                            file.\n"
-		"mput <key-file> <string>  - puts the specified string as a mutable\n"
-		"                            object under the public key in key-file\n"
-		"mget <public-key>         - get a mutable object under the specified\n"
-		"                            public key\n"
+		"mput <key-file> <string> [salt]\n"
+		"                          - puts the specified string as a mutable\n"
+		"                            object under the public key in key-file,\n"
+		"                            and optionally specified salt\n"
+		"mget <public-key> [salt]  - get a mutable object under the specified\n"
+		"                            public key, and salt (optional)\n"
 		);
 	exit(1);
 }
@@ -94,10 +128,9 @@ alert* wait_for_alert(lt::session& s, int alert_type)
 
 		std::vector<alert*> alerts;
 		s.pop_alerts(&alerts);
-		for (std::vector<alert*>::iterator i = alerts.begin()
-			, end(alerts.end()); i != end; ++i)
+		for (auto const a : alerts)
 		{
-			if ((*i)->type() != alert_type)
+			if (a->type() != alert_type)
 			{
 				static int spinner = 0;
 				static const char anim[] = {'-', '\\', '|', '/'};
@@ -107,7 +140,7 @@ alert* wait_for_alert(lt::session& s, int alert_type)
 				//print some alerts?
 				continue;
 			}
-			ret = *i;
+			ret = a;
 			found = true;
 		}
 	}
@@ -194,16 +227,17 @@ void load_dht_state(lt::session& s)
 	f.read(state.data(), size);
 	if (f.fail())
 	{
-		std::fprintf(stderr, "failed to read .dht");
+		std::fprintf(stderr, "failed to read .dht\n");
 		return;
 	}
 
-	bdecode_node e;
 	error_code ec;
-	bdecode(state.data(), state.data() + state.size(), e, ec);
+	bdecode_node e = bdecode(state, ec);
 	if (ec)
+	{
 		std::fprintf(stderr, "failed to parse .dht file: (%d) %s\n"
 			, ec.value(), ec.message().c_str());
+	}
 	else
 	{
 		std::printf("load dht state from .dht\n");
@@ -273,8 +307,7 @@ int main(int argc, char* argv[])
 			usage();
 		}
 		sha1_hash target;
-		bool ret = from_hex({argv[0], 40}, target.data());
-		if (!ret)
+		if (!from_hex({argv[0], 40}, target))
 		{
 			std::fprintf(stderr, "invalid hex encoding of target hash\n");
 			return 1;
@@ -290,7 +323,7 @@ int main(int argc, char* argv[])
 		dht_immutable_item_alert* item = alert_cast<dht_immutable_item_alert>(a);
 
 		std::string str = item->item.to_string();
-		std::printf("%s", str.c_str());
+		std::printf("%s\n", str.c_str());
 	}
 	else if (argv[0] == "put"_sv)
 	{
@@ -328,12 +361,16 @@ int main(int argc, char* argv[])
 		public_key pk;
 		secret_key sk;
 		std::tie(pk, sk) = ed25519_create_keypair(seed);
+		std::string salt;
+
+		if (argc > 1) salt = argv[1];
 
 		bootstrap(s);
 		s.dht_put_item(pk.bytes, std::bind(&put_string, _1, _2, _3, _4
-			, pk.bytes, sk.bytes, argv[0]));
+			, pk.bytes, sk.bytes, argv[0]), salt);
 
-		std::printf("MPUT public key: %s\n", to_hex(pk.bytes).c_str());
+		std::printf("MPUT public key: %s [salt: %s]\n", to_hex(pk.bytes).c_str()
+			, salt.c_str());
 
 		alert* a = wait_for_alert(s, dht_put_alert::alert_type);
 		dht_put_alert* pa = alert_cast<dht_put_alert>(a);
@@ -352,16 +389,18 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		std::array<char, 32> public_key;
-		bool ret = from_hex({argv[0], len}, &public_key[0]);
-		if (!ret)
+		if (!from_hex({argv[0], len}, public_key))
 		{
 			std::fprintf(stderr, "invalid hex encoding of public key\n");
 			return 1;
 		}
 
+		std::string salt;
+		if (argc > 1) salt = argv[1];
+
 		bootstrap(s);
-		s.dht_get_item(public_key);
-		std::printf("MGET %s\n", argv[0]);
+		s.dht_get_item(public_key, salt);
+		std::printf("MGET %s [salt: %s]\n", argv[0], salt.c_str());
 
 		bool authoritative = false;
 
@@ -373,7 +412,7 @@ int main(int argc, char* argv[])
 
 			authoritative = item->authoritative;
 			std::string str = item->item.to_string();
-			std::printf("%s: %s", authoritative ? "auth" : "non-auth", str.c_str());
+			std::printf("%s: %s\n", authoritative ? "auth" : "non-auth", str.c_str());
 		}
 	}
 	else

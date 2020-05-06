@@ -33,7 +33,6 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/config.hpp"
 #include "libtorrent/storage.hpp"
 #include "libtorrent/disk_io_thread.hpp"
-#include "libtorrent/string_util.hpp" // for allocate_string_copy
 #include "libtorrent/disk_buffer_holder.hpp"
 #include "libtorrent/aux_/alloca.hpp"
 #include "libtorrent/aux_/throw.hpp"
@@ -52,6 +51,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/units.hpp"
 #include "libtorrent/hasher.hpp"
 #include "libtorrent/aux_/array.hpp"
+#include "libtorrent/aux_/scope_end.hpp"
 
 #include <functional>
 
@@ -60,6 +60,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/aux_/disable_warnings_pop.hpp"
 
 #define DEBUG_DISK_THREAD 0
+
+namespace libtorrent {
+char const* job_name(job_action_t const job);
+}
 
 #if DEBUG_DISK_THREAD
 #include <cstdarg> // for va_list
@@ -76,10 +80,10 @@ namespace libtorrent {
 #if TORRENT_USE_ASSERTS
 
 #define TORRENT_PIECE_ASSERT(cond, piece) \
-	do { if (!(cond)) { assert_print_piece(piece); assert_fail(#cond, __LINE__, __FILE__, TORRENT_FUNCTION, nullptr); } } TORRENT_WHILE_0
+	do { if (!(cond)) { assert_print_piece(piece); assert_fail(#cond, __LINE__, __FILE__, __func__, nullptr); } } TORRENT_WHILE_0
 
 #define TORRENT_PIECE_ASSERT_FAIL(piece) \
-	do { assert_print_piece(piece); assert_fail("<unconditional>", __LINE__, __FILE__, TORRENT_FUNCTION, nullptr); } TORRENT_WHILE_0
+	do { assert_print_piece(piece); assert_fail("<unconditional>", __LINE__, __FILE__, __func__, nullptr); } TORRENT_WHILE_0
 
 #else
 #define TORRENT_PIECE_ASSERT(cond, piece) do {} TORRENT_WHILE_0
@@ -95,6 +99,14 @@ namespace libtorrent {
 	{
 		static std::mutex log_mutex;
 		static const time_point start = clock_type::now();
+		// map thread IDs to low numbers
+		static std::unordered_map<std::thread::id, int> thread_ids;
+
+		std::thread::id const self = std::this_thread::get_id();
+
+		std::unique_lock<std::mutex> l(log_mutex);
+		auto it = thread_ids.insert({self, int(thread_ids.size())}).first;
+
 		va_list v;
 		va_start(v, fmt);
 
@@ -105,16 +117,15 @@ namespace libtorrent {
 		if (!prepend_time)
 		{
 			prepend_time = (usr[len-1] == '\n');
-			std::unique_lock<std::mutex> l(log_mutex);
 			fputs(usr, stderr);
 			return;
 		}
 		va_end(v);
 		char buf[2300];
 		int const t = int(total_milliseconds(clock_type::now() - start));
-		std::snprintf(buf, sizeof(buf), "%05d: [%p] %s", t, pthread_self(), usr);
+		std::snprintf(buf, sizeof(buf), "\x1b[3%dm%05d: [%d] %s\x1b[0m"
+			, (it->second % 7) + 1, t, it->second, usr);
 		prepend_time = (usr[len-1] == '\n');
-		std::unique_lock<std::mutex> l(log_mutex);
 		fputs(buf, stderr);
 	}
 
@@ -196,16 +207,17 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 // ------- disk_io_thread ------
 
-	disk_io_thread::disk_io_thread(io_service& ios, counters& cnt)
+	disk_io_thread::disk_io_thread(io_service& ios, aux::session_settings const& sett, counters& cnt)
 		: m_generic_io_jobs(*this)
 		, m_generic_threads(m_generic_io_jobs, ios)
 		, m_hash_io_jobs(*this)
 		, m_hash_threads(m_hash_io_jobs, ios)
+		, m_settings(sett)
 		, m_disk_cache(ios, std::bind(&disk_io_thread::trigger_cache_trim, this))
 		, m_stats_counters(cnt)
 		, m_ios(ios)
 	{
-		m_disk_cache.set_settings(m_settings);
+		settings_updated();
 	}
 
 	storage_interface* disk_io_thread::get_torrent(storage_index_t const storage)
@@ -262,18 +274,28 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 		TORRENT_ASSERT(m_magic == 0x1337);
 		m_magic = 0xdead;
+		TORRENT_ASSERT(m_generic_io_jobs.m_queued_jobs.empty());
+		TORRENT_ASSERT(m_hash_io_jobs.m_queued_jobs.empty());
 	}
 #endif
 
 	void disk_io_thread::abort(bool const wait)
 	{
+		DLOG("disk_io_thread::abort: (%d)\n", int(wait));
+
+		// first make sure queued jobs have been submitted
+		// otherwise the queue may not get processed
+		submit_jobs();
+
 		// abuse the job mutex to make setting m_abort and checking the thread count atomic
 		// see also the comment in thread_fun
 		std::unique_lock<std::mutex> l(m_job_mutex);
 		if (m_abort.exchange(true)) return;
-		bool const no_threads = m_num_running_threads == 0;
+		bool const no_threads = m_generic_threads.num_threads() == 0
+			&& m_hash_threads.num_threads() == 0;
 		// abort outstanding jobs belonging to this torrent
 
+		DLOG("aborting hash jobs\n");
 		for (auto i = m_hash_io_jobs.m_queued_jobs.iterate(); i.get(); i.next())
 			i.get()->flags |= disk_io_job::aborted;
 		l.unlock();
@@ -285,6 +307,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 			abort_jobs();
 		}
 
+		DLOG("aborting thread pools\n");
 		// even if there are no threads it doesn't hurt to abort the pools
 		// it prevents threads from being started after an abort which is a good
 		// defensive programming measure
@@ -311,17 +334,19 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		}
 	}
 
-	void disk_io_thread::set_settings(settings_pack const* pack)
+	void disk_io_thread::settings_updated()
 	{
 		TORRENT_ASSERT(m_magic == 0x1337);
 		std::unique_lock<std::mutex> l(m_cache_mutex);
-		apply_pack(pack, m_settings);
 		m_disk_cache.set_settings(m_settings);
 		m_file_pool.resize(m_settings.get_int(settings_pack::file_pool_size));
 
 		int const num_threads = m_settings.get_int(settings_pack::aio_threads);
 		// add one hasher thread for every three generic threads
 		int const num_hash_threads = num_threads / hasher_thread_divisor;
+
+		DLOG("set_max_threads(%d, %d)\n", num_threads - num_hash_threads
+			, num_hash_threads);
 		m_generic_threads.set_max_threads(num_threads - num_hash_threads);
 		m_hash_threads.set_max_threads(num_hash_threads);
 	}
@@ -1126,10 +1151,9 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		{
 			std::unique_lock<std::mutex> l(m_cache_mutex);
 
-			DLOG("perform_job job: %s ( %s%s) piece: %d offset: %d outstanding: %d\n"
-				, job_action_name[j->action]
+			DLOG("perform_job job: %s ( %s) piece: %d offset: %d outstanding: %d\n"
+				, job_name(j->action)
 				, (j->flags & disk_io_job::fence) ? "fence ": ""
-				, (j->flags & disk_io_job::force_copy) ? "force_copy ": ""
 				, static_cast<int>(j->piece), j->d.io.offset
 				, j->storage ? j->storage->num_outstanding_jobs() : -1);
 		}
@@ -1309,6 +1333,9 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 			return s;
 		}
 
+		// free buffers at the end of the scope
+		auto iov_dealloc = aux::scope_end([&]{ m_disk_cache.free_iovec(iov); });
+
 		// this is the offset that's aligned to block boundaries
 		int const adjusted_offset = aux::numeric_cast<int>(j->d.io.offset & ~(default_block_size - 1));
 
@@ -1347,9 +1374,6 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 		if (ret < 0)
 		{
-			// read failed. free buffers and return error
-			m_disk_cache.free_iovec(iov);
-
 			pe = m_disk_cache.find_piece(j);
 			if (pe == nullptr)
 			{
@@ -1375,6 +1399,10 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 #if TORRENT_USE_ASSERTS
 		pe->piece_log.push_back(piece_log_t(j->action, block));
 #endif
+
+		// we want to hold on to the iov now
+		iov_dealloc.disarm();
+
 		// as soon we insert the blocks they may be evicted
 		// (if using purgeable memory). In order to prevent that
 		// until we can read from them, increment the refcounts
@@ -1538,7 +1566,8 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 			return status_t::fatal_disk_error;
 		}
 
-		pe = m_disk_cache.add_dirty_block(j);
+		pe = m_disk_cache.add_dirty_block(j
+			, !m_settings.get_bool(settings_pack::disable_hash_checks));
 
 		if (pe)
 		{
@@ -1651,7 +1680,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 			// this means the job was queued up inside storage
 			m_stats_counters.inc_stats_counter(counters::blocked_disk_jobs);
 			DLOG("blocked job: %s (torrent: %d total: %d)\n"
-				, job_action_name[j->action], j->storage ? j->storage->num_blocked() : 0
+				, job_name(j->action), j->storage ? j->storage->num_blocked() : 0
 				, int(m_stats_counters[counters::blocked_disk_jobs]));
 			return 2;
 		}
@@ -1750,7 +1779,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 			// this means the job was queued up inside storage
 			m_stats_counters.inc_stats_counter(counters::blocked_disk_jobs);
 			DLOG("blocked job: %s (torrent: %d total: %d)\n"
-				, job_action_name[j->action], j->storage ? j->storage->num_blocked() : 0
+				, job_name(j->action), j->storage ? j->storage->num_blocked() : 0
 				, int(m_stats_counters[counters::blocked_disk_jobs]));
 			return exceeded;
 		}
@@ -1758,7 +1787,8 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		std::unique_lock<std::mutex> l(m_cache_mutex);
 		// if we succeed in adding the block to the cache, the job will
 		// be added along with it. we may not free j if so
-		cached_piece_entry* dpe = m_disk_cache.add_dirty_block(j);
+		cached_piece_entry* dpe = m_disk_cache.add_dirty_block(j
+			, !m_settings.get_bool(settings_pack::disable_hash_checks));
 
 		if (dpe != nullptr)
 		{
@@ -2120,6 +2150,10 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 		iovec_t iov = { m_disk_cache.allocate_buffer("hashing")
 			, static_cast<std::size_t>(default_block_size) };
+
+		// free at the end of the scope
+		auto iov_dealloc = aux::scope_end([&]{ m_disk_cache.free_buffer(iov.data()); });
+
 		hasher h;
 		int ret = 0;
 		int offset = 0;
@@ -2132,7 +2166,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 			iov = iov.first(std::min(default_block_size, piece_size - offset));
 			ret = j->storage->readv(iov, j->piece, offset, file_flags, j->error);
-			if (ret < 0) break;
+			if (ret <= 0) break;
 			iov = iov.first(ret);
 
 			if (!j->error.ec)
@@ -2149,14 +2183,15 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 			h.update(iov);
 		}
 
-		m_disk_cache.free_buffer(iov.data());
-
 		j->d.piece_hash = h.final();
 		return ret >= 0 ? status_t::no_error : status_t::fatal_disk_error;
 	}
 
 	status_t disk_io_thread::do_hash(disk_io_job* j, jobqueue_t& /* completed_jobs */ )
 	{
+		if (m_settings.get_bool(settings_pack::disable_hash_checks))
+			return status_t::no_error;
+
 		int const piece_size = j->storage->files().piece_size(j->piece);
 		open_mode_t const file_flags = file_flags_for_job(j
 			, m_settings.get_bool(settings_pack::coalesce_reads));
@@ -2304,6 +2339,9 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 			TORRENT_ALLOCA(iov, iovec_t, blocks_left);
 			if (m_disk_cache.allocate_iovec(iov) >= 0)
 			{
+				// free buffers at the end of the scope
+				auto iov_dealloc = aux::scope_end([&]{ m_disk_cache.free_iovec(iov); });
+
 				// if this is the last piece, adjust the size of the
 				// last buffer to match up
 				iov[blocks_left - 1] = iov[blocks_left - 1].first(
@@ -2336,13 +2374,12 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 					TORRENT_ASSERT(offset == piece_size);
 
+					// we want to hold on to the buffers now, to insert them in the
+					// cache
+					iov_dealloc.disarm();
 					l.lock();
 					m_disk_cache.insert_blocks(pe, first_block, iov, j);
 					l.unlock();
-				}
-				else
-				{
-					m_disk_cache.free_iovec(iov);
 				}
 			}
 		}
@@ -2385,6 +2422,9 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 						return status_t::fatal_disk_error;
 					}
 
+					// free buffers at the end of the scope
+					auto iov_dealloc = aux::scope_end([&]{ m_disk_cache.free_buffer(iov.data()); });
+
 					DLOG("do_hash: reading (piece: %d block: %d)\n"
 						, static_cast<int>(pe->piece), first_block + i);
 
@@ -2397,7 +2437,6 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 					{
 						ret = status_t::fatal_disk_error;
 						TORRENT_ASSERT(j->error.ec && j->error.operation != operation_t::unknown);
-						m_disk_cache.free_buffer(iov.data());
 						break;
 					}
 
@@ -2409,7 +2448,6 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 						ret = status_t::fatal_disk_error;
 						j->error.ec = boost::asio::error::eof;
 						j->error.operation = operation_t::file_read;
-						m_disk_cache.free_buffer(iov.data());
 						break;
 					}
 
@@ -2428,6 +2466,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 					offset += int(iov.size());
 					ph->h.update(iov);
 
+					iov_dealloc.disarm();
 					l.lock();
 					m_disk_cache.insert_blocks(pe, first_block + i, iov, j);
 					l.unlock();
@@ -2530,14 +2569,15 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 		TORRENT_ASSERT(j->storage->files().piece_length() > 0);
 
+		bool const verify_success = j->storage->verify_resume_data(*rd
+			, links ? *links : aux::vector<std::string, file_index_t>(), j->error);
+
 		// if we don't have any resume data, return
 		// or if error is set and return value is 'no_error' or 'need_full_check'
 		// the error message indicates that the fast resume data was rejected
 		// if 'fatal_disk_error' is returned, the error message indicates what
 		// when wrong in the disk access
-		if ((rd->have_pieces.empty()
-			|| !j->storage->verify_resume_data(*rd
-				, links ? *links : aux::vector<std::string, file_index_t>(), j->error))
+		if ((rd->have_pieces.empty() || !verify_success)
 			&& !m_settings.get_bool(settings_pack::no_recheck_incomplete_resume))
 		{
 			// j->error may have been set at this point, by verify_resume_data()
@@ -2875,7 +2915,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		TORRENT_ASSERT(!m_abort);
 
 		DLOG("add_fence:job: %s (outstanding: %d)\n"
-			, job_action_name[j->action]
+			, job_name(j->action)
 			, j->storage->num_outstanding_jobs());
 
 		m_stats_counters.inc_stats_counter(counters::num_fenced_read + static_cast<int>(j->action));
@@ -2955,7 +2995,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		}
 
 		DLOG("add_job: %s (outstanding: %d)\n"
-			, job_action_name[j->action]
+			, job_name(j->action)
 			, j->storage ? j->storage->num_outstanding_jobs() : 0);
 
 		// is the fence up for this storage?
@@ -2967,7 +3007,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		{
 			m_stats_counters.inc_stats_counter(counters::blocked_disk_jobs);
 			DLOG("blocked job: %s (torrent: %d total: %d)\n"
-				, job_action_name[j->action], j->storage ? j->storage->num_blocked() : 0
+				, job_name(j->action), j->storage ? j->storage->num_blocked() : 0
 				, int(m_stats_counters[counters::blocked_disk_jobs]));
 			return;
 		}
@@ -3092,15 +3132,10 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		, disk_io_thread_pool& pool)
 	{
 		std::thread::id const thread_id = std::this_thread::get_id();
-#if DEBUG_DISK_THREAD
-		std::stringstream thread_id_str;
-		thread_id_str << thread_id;
-#endif
 
-		DLOG("started disk thread %s\n", thread_id_str.str().c_str());
+		DLOG("started disk thread\n");
 
 		std::unique_lock<std::mutex> l(m_job_mutex);
-		if (m_abort) return;
 
 		++m_num_running_threads;
 		m_stats_counters.inc_stats_counter(counters::num_running_threads, 1);
@@ -3163,8 +3198,8 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		m_stats_counters.inc_stats_counter(counters::num_running_threads, -1);
 		if (--m_num_running_threads > 0 || !m_abort)
 		{
-			DLOG("exiting disk thread %s. num_threads: %d aborting: %d\n"
-				, thread_id_str.str().c_str(), num_threads(), int(m_abort));
+			DLOG("exiting disk thread. num_threads: %d aborting: %d\n"
+				, num_threads(), int(m_abort));
 			TORRENT_ASSERT(m_magic == 0x1337);
 			return;
 		}
@@ -3195,7 +3230,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		}
 		l2.unlock();
 
-		DLOG("disk thread %s is the last one alive. cleaning up\n", thread_id_str.str().c_str());
+		DLOG("the last disk thread alive. cleaning up\n");
 
 		abort_jobs();
 
@@ -3204,8 +3239,10 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 
 	void disk_io_thread::abort_jobs()
 	{
+		DLOG("disk_io_thread::abort_jobs\n");
+
 		TORRENT_ASSERT(m_magic == 0x1337);
-		TORRENT_ASSERT(!m_jobs_aborted.exchange(true));
+		if (m_jobs_aborted.test_and_set()) return;
 
 		jobqueue_t jobs;
 		m_disk_cache.clear(jobs);
@@ -3286,7 +3323,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 			TORRENT_ASSERT((j->flags & disk_io_job::in_progress) || !j->storage);
 
 //			DLOG("job_complete %s outstanding: %d\n"
-//				, job_action_name[j->action], j->storage ? j->storage->num_outstanding_jobs() : 0);
+//				, job_name(j->action), j->storage ? j->storage->num_outstanding_jobs() : 0);
 
 			if (j->storage)
 			{
@@ -3364,7 +3401,8 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 					continue;
 				}
 
-				cached_piece_entry* pe = m_disk_cache.add_dirty_block(j);
+				cached_piece_entry* pe = m_disk_cache.add_dirty_block(j
+					, !m_settings.get_bool(settings_pack::disable_hash_checks));
 
 				if (pe == nullptr)
 				{
@@ -3454,7 +3492,7 @@ constexpr disk_job_flags_t disk_interface::cache_hit;
 		{
 			TORRENT_ASSERT(j->job_posted == true);
 			TORRENT_ASSERT(j->callback_called == false);
-//			DLOG("   callback: %s\n", job_action_name[j->action]);
+//			DLOG("   callback: %s\n", job_name(j->action));
 			disk_io_job* next = j->next;
 
 #if TORRENT_USE_ASSERTS

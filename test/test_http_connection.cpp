@@ -38,6 +38,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/socket_io.hpp" // print_endpoint
 #include "libtorrent/http_connection.hpp"
 #include "libtorrent/resolver.hpp"
+#include "libtorrent/random.hpp"
 
 #include <fstream>
 #include <iostream>
@@ -120,8 +121,18 @@ void run_test(std::string const& url, int size, int status, int connected
 		<< " connected: " << connected
 		<< " error: " << (ec?ec->message():"no error") << std::endl;
 
+#ifdef TORRENT_USE_OPENSSL
+	ssl::context ssl_ctx(ssl::context::sslv23_client);
+	ssl_ctx.set_verify_mode(ssl::context::verify_none);
+#endif
+
 	std::shared_ptr<http_connection> h = std::make_shared<http_connection>(ios
-		, res, &::http_handler_test, true, 1024*1024, &::http_connect_handler_test);
+		, res, &::http_handler_test, true, 1024*1024, &::http_connect_handler_test
+		, http_filter_handler()
+#ifdef TORRENT_USE_OPENSSL
+		, &ssl_ctx
+#endif
+		);
 	h->get(url, seconds(5), 0, &ps, 5, "test/user-agent", boost::none, resolver_flags{}, auth);
 	ios.reset();
 	error_code e;
@@ -144,8 +155,7 @@ void run_test(std::string const& url, int size, int status, int connected
 
 void write_test_file()
 {
-	std::srand(unsigned(std::time(nullptr)));
-	std::generate(data_buffer, data_buffer + sizeof(data_buffer), &std::rand);
+	aux::random_bytes(data_buffer);
 	error_code ec;
 	file test_file("test_file", open_mode::write_only, ec);
 	TEST_CHECK(!ec);
@@ -217,7 +227,12 @@ void run_suite(std::string const& protocol
 		, static_cast<void*>(h), h_errno);
 	if (h == nullptr && h_errno == HOST_NOT_FOUND)
 	{
-		run_test(protocol + "://non-existent-domain.se/non-existing-file", -1, -1, 0, err(), ps);
+		// if we have a proxy, we'll be able to connect to it, we will just get an
+		// error from the proxy saying it failed to connect to the final target
+		if (protocol == "http" && (ps.type == settings_pack::http || ps.type == settings_pack::http_pw))
+			run_test(protocol + "://non-existent-domain.se/non-existing-file", -1, -1, 1, err(), ps);
+		else
+			run_test(protocol + "://non-existent-domain.se/non-existing-file", -1, -1, 0, err(), ps);
 	}
 	if (ps.type != settings_pack::none)
 		stop_proxy(ps.port);
@@ -230,7 +245,14 @@ void run_suite(std::string const& protocol
 TORRENT_TEST(no_proxy_ssl) { run_suite("https", settings_pack::none); }
 TORRENT_TEST(http_ssl) { run_suite("https", settings_pack::http); }
 TORRENT_TEST(http_pw_ssl) { run_suite("https", settings_pack::http_pw); }
+TORRENT_TEST(socks5_proxy_ssl) { run_suite("https", settings_pack::socks5); }
+TORRENT_TEST(socks5_pw_proxy_ssl) { run_suite("https", settings_pack::socks5_pw); }
 #endif // USE_OPENSSL
+
+TORRENT_TEST(http_proxy) { run_suite("http", settings_pack::http); }
+TORRENT_TEST(http__pwproxy) { run_suite("http", settings_pack::http_pw); }
+TORRENT_TEST(socks5_proxy) { run_suite("http", settings_pack::socks5); }
+TORRENT_TEST(socks5_pw_proxy) { run_suite("http", settings_pack::socks5_pw); }
 
 TORRENT_TEST(no_keepalive)
 {

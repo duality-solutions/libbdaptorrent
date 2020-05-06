@@ -46,6 +46,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/write_resume_data.hpp"
 #include "libtorrent/aux_/path.hpp"
 #include "libtorrent/aux_/storage_utils.hpp"
+#include "libtorrent/random.hpp"
 
 #include <memory>
 #include <functional> // for bind
@@ -185,7 +186,7 @@ std::shared_ptr<default_storage> setup_torrent(file_storage& fs
 std::vector<char> new_piece(std::size_t const size)
 {
 	std::vector<char> ret(size);
-	std::generate(ret.begin(), ret.end(), random_byte);
+	aux::random_bytes(ret);
 	return ret;
 }
 
@@ -486,10 +487,9 @@ void test_check_files(std::string const& test_path
 	boost::asio::io_service ios;
 	counters cnt;
 
-	disk_io_thread io(ios, cnt);
-	settings_pack sett;
+	aux::session_settings sett;
 	sett.set_int(settings_pack::aio_threads, 1);
-	io.set_settings(&sett);
+	disk_io_thread io(ios, sett, cnt);
 
 	disk_buffer_pool dp(ios, std::bind(&nop));
 

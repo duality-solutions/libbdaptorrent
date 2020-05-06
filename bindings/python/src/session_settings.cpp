@@ -4,6 +4,7 @@
 
 #include "boost_python.hpp"
 #include <libtorrent/session.hpp>
+#include <libtorrent/kademlia/dht_settings.hpp>
 
 using namespace boost::python;
 using namespace lt;
@@ -16,7 +17,9 @@ void bind_session_settings()
         .value("auto_expand_choker", settings_pack::rate_based_choker)
 #endif
         .value("rate_based_choker", settings_pack::rate_based_choker)
+#if TORRENT_ABI_VERSION == 1
         .value("bittyrant_choker", settings_pack::bittyrant_choker)
+#endif
     ;
 
     enum_<settings_pack::seed_choking_algorithm_t>("seed_choking_algorithm_t")
@@ -65,6 +68,7 @@ void bind_session_settings()
 #endif
     ;
 
+    {
     scope s = enum_<settings_pack::proxy_type_t>("proxy_type_t")
         .value("none", settings_pack::none)
         .value("socks4", settings_pack::socks4)
@@ -88,6 +92,7 @@ void bind_session_settings()
         .def_readwrite("proxy_hostnames", &proxy_settings::proxy_hostnames)
     ;
 #endif
+   }
 
 #ifndef TORRENT_DISABLE_DHT
     class_<dht::dht_settings>("dht_settings")

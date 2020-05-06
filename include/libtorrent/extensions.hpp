@@ -96,7 +96,9 @@ POSSIBILITY OF SUCH DAMAGE.
 // torrent has already been started and you want to hook in the extension at
 // run-time).
 //
-// The signature of the function is::
+// The signature of the function is:
+//
+// .. code:: c++
 //
 // 	std::shared_ptr<torrent_plugin> (*)(torrent_handle const&, void*);
 //
@@ -185,6 +187,10 @@ namespace libtorrent {
 	{
 		// hidden
 		virtual ~plugin() {}
+
+#if TORRENT_ABI_VERSION == 1
+		using feature_flags_t = libtorrent::feature_flags_t;
+#endif
 
 		// include this bit if your plugin needs to alter the order of the
 		// optimistic unchoke of peers. i.e. have the on_optimistic_unchoke()
@@ -275,6 +281,10 @@ namespace libtorrent {
 		// hidden
 		virtual ~torrent_plugin() {}
 
+#if TORRENT_ABI_VERSION == 1
+		using flags_t = libtorrent::add_peer_flags_t;
+#endif
+
 		// This function is called each time a new peer is connected to the torrent. You
 		// may choose to ignore this by just returning a default constructed
 		// ``shared_ptr`` (in which case you don't need to override this member
@@ -329,10 +339,6 @@ namespace libtorrent {
 		// the state is one of torrent_status::state_t
 		// enum members
 		virtual void on_state(torrent_status::state_t) {}
-
-		// called every time policy::add_peer is called
-		// src is a bitmask of which sources this peer
-		// has been seen from. flags is a bitmask of:
 
 		// this is the first time we see this peer
 		static constexpr add_peer_flags_t first_time = 1_bit;

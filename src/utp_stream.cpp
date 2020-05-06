@@ -119,17 +119,8 @@ void set_utp_stream_logging(bool enable) {
 
 #else
 
-#if __cplusplus >= 201103L || defined __clang__
-
 #define UTP_LOG(...) do {} while(false)
 #define UTP_LOGV(...) do {} while(false)
-
-#else
-
-#define UTP_LOG TORRENT_WHILE_0 printf
-#define UTP_LOGV TORRENT_WHILE_0 printf
-
-#endif // cplusplus
 
 #endif
 
@@ -830,7 +821,7 @@ utp_stream::endpoint_type utp_stream::local_endpoint(error_code& ec) const
 		return endpoint_type();
 	}
 
-	udp::endpoint ep = s->local_endpoint();
+	udp::endpoint ep = s->get_local_endpoint();
 	return endpoint_type(ep.address(), ep.port());
 }
 

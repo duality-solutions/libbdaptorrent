@@ -82,7 +82,7 @@ namespace libtorrent { namespace aux {
 	void clear_bufs(span<iovec_t const> bufs)
 	{
 		for (auto buf : bufs)
-			std::fill(buf.begin(), buf.end(), 0);
+			std::fill(buf.begin(), buf.end(), char(0));
 	}
 
 #if TORRENT_USE_ASSERTS
@@ -472,6 +472,7 @@ namespace libtorrent { namespace aux {
 #ifdef TORRENT_DISABLE_MUTABLE_TORRENTS
 		TORRENT_UNUSED(links);
 #else
+		// TODO: this should probably be moved to default_storage::initialize
 		if (!links.empty())
 		{
 			TORRENT_ASSERT(int(links.size()) == fs.num_files());

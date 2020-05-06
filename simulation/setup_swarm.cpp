@@ -40,6 +40,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/ip_filter.hpp"
 #include "libtorrent/alert_types.hpp"
 #include "libtorrent/aux_/path.hpp"
+#include "libtorrent/random.hpp"
 #include <fstream>
 
 #include "settings.hpp"
@@ -143,6 +144,15 @@ bool is_seed(lt::session& ses)
 	if (handles.empty()) return false;
 	auto h = handles[0];
 	return h.status().is_seeding;
+}
+
+bool is_finished(lt::session& ses)
+{
+	auto handles = ses.get_torrents();
+	TEST_EQUAL(handles.size(), 1);
+	if (handles.empty()) return false;
+	auto h = handles[0];
+	return h.status().is_finished;
 }
 
 int completed_pieces(lt::session& ses)
@@ -294,7 +304,7 @@ void setup_swarm(int num_nodes
 
 		// make sure the sessions have different peer ids
 		lt::peer_id pid;
-		std::generate(&pid[0], &pid[0] + 20, &random_byte);
+		lt::aux::random_bytes(pid);
 		pack.set_str(lt::settings_pack::peer_fingerprint, pid.to_string());
 		if (i == 0) new_session(pack);
 

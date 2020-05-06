@@ -121,7 +121,7 @@ namespace libtorrent {
 				, escape_string({tracker_req().pid.data(), 20}).c_str()
 				// the i2p tracker seems to verify that the port is not 0,
 				// even though it ignores it otherwise
-				, i2p ? 1 : tracker_req().listen_port
+				, tracker_req().listen_port
 				, tracker_req().uploaded
 				, tracker_req().downloaded
 				, tracker_req().left
@@ -272,6 +272,20 @@ namespace libtorrent {
 	void http_tracker_connection::on_filter(http_connection& c
 		, std::vector<tcp::endpoint>& endpoints)
 	{
+		// filter all endpoints we cannot reach from this listen socket, which may
+		// be all of them, in which case we should not announce this listen socket
+		// to this tracker
+		auto const ls = bind_socket();
+		endpoints.erase(std::remove_if(endpoints.begin(), endpoints.end()
+			, [&](tcp::endpoint const& ep) { return !ls.can_route(ep.address()); })
+			, endpoints.end());
+
+		if (endpoints.empty())
+		{
+			fail(error_code(boost::system::errc::host_unreachable, system_category()));
+			return;
+		}
+
 		TORRENT_UNUSED(c);
 		if (!tracker_req().filter) return;
 
