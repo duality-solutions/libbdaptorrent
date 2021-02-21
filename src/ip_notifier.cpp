@@ -45,6 +45,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "libtorrent/aux_/throw.hpp"
 #include "libtorrent/aux_/disable_warnings_push.hpp"
 #include <iphlpapi.h>
+#include <netioapi.h>
 #include <mutex>
 #include "libtorrent/aux_/disable_warnings_pop.hpp"
 #else
